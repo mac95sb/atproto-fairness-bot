@@ -23,39 +23,26 @@ actor ATProtoClient {
 
   func postReply(text: String, replyingTo: PostRecord.ReplyRef) async throws -> CreateRecordResponse
   {
-    let record = ReplyPostRecord(
-      text: text,
-      createdAt: ISO8601DateFormatter().string(from: Date()),
-      reply: replyingTo,
-    )
     let url = config.botPDSURL.appending(path: "xrpc/com.atproto.repo.createRecord")
-
-    let activeSession = try await currentSession()
-    let body = CreateRecordRequest(
-      repo: activeSession.did, collection: "app.bsky.feed.post", record: record)
-
-    do {
-      return try await send(body, to: url, bearer: activeSession.accessJwt)
-    } catch ATProtoError.unauthorized {
-      let refreshed = try await refresh()
-      return try await send(body, to: url, bearer: refreshed.accessJwt)
+    return try await sendWithRefresh(to: url) { session in
+      let record = ReplyPostRecord(
+        text: text,
+        createdAt: ISO8601DateFormatter().string(from: Date()),
+        reply: replyingTo,
+      )
+      return CreateRecordRequest(
+        repo: session.did, collection: "app.bsky.feed.post", record: record)
     }
   }
 
   func configureProfile() async throws {
-    let activeSession = try await currentSession()
-    let record = ProfileRecord(
-      displayName: String(config.botDisplayName.prefix(64)),
-      description: String(config.botProfileDescription.prefix(256)),
-    )
-    let body = PutProfileRecordRequest(repo: activeSession.did, record: record)
     let url = config.botPDSURL.appending(path: "xrpc/com.atproto.repo.putRecord")
-
-    do {
-      let _: CreateRecordResponse = try await send(body, to: url, bearer: activeSession.accessJwt)
-    } catch ATProtoError.unauthorized {
-      let refreshed = try await refresh()
-      let _: CreateRecordResponse = try await send(body, to: url, bearer: refreshed.accessJwt)
+    let _: CreateRecordResponse = try await sendWithRefresh(to: url) { session in
+      let record = ProfileRecord(
+        displayName: String(config.botDisplayName.prefix(64)),
+        description: String(config.botProfileDescription.prefix(256)),
+      )
+      return PutProfileRecordRequest(repo: session.did, record: record)
     }
   }
 
@@ -136,7 +123,22 @@ actor ATProtoClient {
     return decoded
   }
 
-  // MARK: - Low-level request helper
+  // MARK: - Low-level request helpers
+
+  /// Sends an authenticated request built from the current session, retrying
+  /// once after a fresh `refresh()` if the session had expired.
+  private func sendWithRefresh<Body: Encodable, Response: Decodable>(
+    to url: URL, makeBody: (SessionResponse) -> Body,
+  ) async throws -> Response {
+    let activeSession = try await currentSession()
+    let body = makeBody(activeSession)
+    do {
+      return try await send(body, to: url, bearer: activeSession.accessJwt)
+    } catch ATProtoError.unauthorized {
+      let refreshed = try await refresh()
+      return try await send(body, to: url, bearer: refreshed.accessJwt)
+    }
+  }
 
   private func send<Response: Decodable>(
     _ body: some Encodable, to url: URL, bearer: String?,

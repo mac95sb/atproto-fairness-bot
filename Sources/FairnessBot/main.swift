@@ -1,3 +1,0 @@
-import ArgumentParser
-
-FairnessBotCLI.main()

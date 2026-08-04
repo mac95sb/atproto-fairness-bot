@@ -1,7 +1,8 @@
 import ArgumentParser
 import Foundation
 
-struct FairnessBotCLI: ParsableCommand {
+@main
+struct FairnessBotCLI: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "fairness-bot",
     abstract: "Watch Bluesky replies and flag unfair engagement.",
@@ -9,35 +10,31 @@ struct FairnessBotCLI: ParsableCommand {
     defaultSubcommand: Watch.self,
   )
 
-  struct Watch: ParsableCommand {
+  struct Watch: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       abstract: "Watch Jetstream continuously and reply only to unfair replies.",
     )
 
-    func run() throws {
-      try runBlocking {
-        try await FairnessBotApp.run()
-      }
+    func run() async throws {
+      try await FairnessBotApp.run()
     }
   }
 
-  struct SetupProfile: ParsableCommand {
+  struct SetupProfile: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "setup-profile",
       abstract: "Apply the configured profile and Bluesky automation label.",
     )
 
-    func run() throws {
-      try runBlocking {
-        let config = try Config()
-        let atproto = ATProtoClient(config: config)
-        try await atproto.configureProfile()
-        print("Bot profile updated for @\(config.botHandle).")
-      }
+    func run() async throws {
+      let config = try Config()
+      let atproto = ATProtoClient(config: config)
+      try await atproto.configureProfile()
+      print("Bot profile updated for @\(config.botHandle).")
     }
   }
 
-  struct Check: ParsableCommand {
+  struct Check: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       abstract: "Evaluate one reply, dry-run by default.",
     )
@@ -48,35 +45,8 @@ struct FairnessBotCLI: ParsableCommand {
     @Argument(help: "An AT-URI or https://bsky.app/profile/<handle-or-did>/post/<rkey> URL.")
     var post: String
 
-    func run() throws {
-      let post = post
-      let postReply = postReply
-      try runBlocking {
-        try await FairnessBotApp.check(post, postIfUnfair: postReply)
-      }
+    func run() async throws {
+      try await FairnessBotApp.check(post, postIfUnfair: postReply)
     }
   }
-}
-
-private final class BlockingResult<Value>: @unchecked Sendable {
-  var result: Result<Value, Error>?
-}
-
-private func runBlocking<Value: Sendable>(
-  _ operation: @escaping @Sendable () async throws -> Value,
-) throws -> Value {
-  let semaphore = DispatchSemaphore(value: 0)
-  let result = BlockingResult<Value>()
-
-  Task.detached {
-    defer { semaphore.signal() }
-    do {
-      result.result = .success(try await operation())
-    } catch {
-      result.result = .failure(error)
-    }
-  }
-
-  semaphore.wait()
-  return try result.result!.get()
 }

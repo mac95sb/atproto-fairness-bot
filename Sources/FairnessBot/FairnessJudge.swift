@@ -17,30 +17,14 @@ struct FairnessJudge {
   }
 
   func judge(_ context: Context) async throws -> FairnessVerdict {
-    let request = ChatCompletionRequest(
-      model: config.llmModel,
+    let content = try await sendChatCompletion(
+      baseURL: config.llmBaseURL, apiKey: config.llmAPIKey, model: config.llmModel,
       messages: [
         .init(role: "system", content: systemPrompt),
         .init(role: "user", content: userPrompt(for: context)),
       ],
       temperature: 0.2,
     )
-
-    var urlRequest = URLRequest(url: config.llmBaseURL.appending(path: "chat/completions"))
-    urlRequest.httpMethod = "POST"
-    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    urlRequest.setValue("Bearer \(config.llmAPIKey)", forHTTPHeaderField: "Authorization")
-    urlRequest.httpBody = try JSONEncoder().encode(request)
-
-    let (data, response) = try await urlSession.data(for: urlRequest)
-    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-      throw FairnessJudgeError.requestFailed(status: http.statusCode)
-    }
-
-    let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-    guard let content = completion.choices.first?.message.content else {
-      throw FairnessJudgeError.emptyResponse
-    }
     return try Self.parseVerdict(from: content)
   }
 
@@ -53,8 +37,8 @@ struct FairnessJudge {
     }
     guard let reviewer = config.reviewLLM else { return candidateReply }
 
-    let request = ChatCompletionRequest(
-      model: reviewer.model,
+    let content = try await sendChatCompletion(
+      baseURL: reviewer.baseURL, apiKey: reviewer.apiKey, model: reviewer.model,
       messages: [
         .init(role: "system", content: reviewSystemPrompt),
         .init(
@@ -63,23 +47,33 @@ struct FairnessJudge {
       ],
       temperature: 0,
     )
-    var urlRequest = URLRequest(url: reviewer.baseURL.appending(path: "chat/completions"))
+    let review = try Self.parseReview(from: content)
+    guard review.approved, let reply = review.reply, !reply.isEmpty else { return nil }
+    return reply
+  }
+
+  private func sendChatCompletion(
+    baseURL: URL, apiKey: String, model: String,
+    messages: [ChatCompletionRequest.Message], temperature: Double,
+  ) async throws -> String {
+    let request = ChatCompletionRequest(model: model, messages: messages, temperature: temperature)
+
+    var urlRequest = URLRequest(url: baseURL.appending(path: "chat/completions"))
     urlRequest.httpMethod = "POST"
     urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    urlRequest.setValue("Bearer \(reviewer.apiKey)", forHTTPHeaderField: "Authorization")
+    urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     urlRequest.httpBody = try JSONEncoder().encode(request)
 
     let (data, response) = try await urlSession.data(for: urlRequest)
     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
       throw FairnessJudgeError.requestFailed(status: http.statusCode)
     }
+
     let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
     guard let content = completion.choices.first?.message.content else {
       throw FairnessJudgeError.emptyResponse
     }
-    let review = try Self.parseReview(from: content)
-    guard review.approved, let reply = review.reply, !reply.isEmpty else { return nil }
-    return reply
+    return content
   }
 
   /// Models sometimes wrap JSON in prose or a markdown code fence despite
