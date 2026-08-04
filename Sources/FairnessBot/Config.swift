@@ -1,0 +1,98 @@
+import Foundation
+
+/// All bot behavior is driven by environment variables so anyone can point this
+/// at their own PDS/account and LLM provider without touching source. See `.env.example`.
+struct Config: CustomStringConvertible {
+  let llmBaseURL: URL
+  let llmAPIKey: String
+  let llmModel: String
+
+  let targetHandle: String
+  let targetDID: String
+
+  let botPDSURL: URL
+  let botHandle: String
+  let botAppPassword: String
+  let botDisplayName: String
+
+  let jetstreamURL: URL
+  let appViewURL: URL
+  let stateDirectory: URL
+
+  enum ConfigError: Error, CustomStringConvertible {
+    case missing([String])
+
+    var description: String {
+      switch self {
+      case .missing(let keys):
+        "Missing required environment variable(s): \(keys.joined(separator: ", "))"
+      }
+    }
+  }
+
+  init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
+    func required(_ key: String, missing: inout [String]) -> String {
+      guard let value = environment[key], !value.isEmpty else {
+        missing.append(key)
+        return ""
+      }
+      return value
+    }
+
+    var missing: [String] = []
+    let llmBaseURLString = required("LLM_BASE_URL", missing: &missing)
+    let llmAPIKey = required("LLM_API_KEY", missing: &missing)
+    let llmModel = required("LLM_MODEL", missing: &missing)
+    let botPDSURLString = required("BOT_PDS_URL", missing: &missing)
+    let botHandle = required("BOT_HANDLE", missing: &missing)
+    let botAppPassword = required("BOT_APP_PASSWORD", missing: &missing)
+    guard missing.isEmpty else { throw ConfigError.missing(missing) }
+
+    guard let botPDSURL = URL(string: botPDSURLString) else {
+      throw ConfigError.missing(["BOT_PDS_URL (not a valid URL)"])
+    }
+    guard let llmBaseURL = URL(string: llmBaseURLString) else {
+      throw ConfigError.missing(["LLM_BASE_URL (not a valid URL)"])
+    }
+
+    self.llmBaseURL = llmBaseURL
+    self.llmAPIKey = llmAPIKey
+    self.llmModel = llmModel
+
+    targetHandle = environment["TARGET_HANDLE"] ?? "maclong.dev"
+    targetDID = environment["TARGET_DID"] ?? "did:web:id.maclong.dev"
+
+    self.botPDSURL = botPDSURL
+    self.botHandle = botHandle
+    self.botAppPassword = botAppPassword
+    botDisplayName = environment["BOT_DISPLAY_NAME"] ?? "Fairness Bot"
+
+    jetstreamURL = URL(
+      string: environment["JETSTREAM_URL"]
+        ?? "wss://jetstream2.us-east.bsky.network/subscribe",
+    )!
+    appViewURL = URL(
+      string: environment["APP_VIEW_URL"] ?? "https://public.api.bsky.app",
+    )!
+    stateDirectory = URL(
+      fileURLWithPath: environment["STATE_DIR"] ?? "state",
+      isDirectory: true,
+    )
+  }
+
+  /// Redacted on purpose: never let the app password or API key end up in logs,
+  /// error messages, or an accidental `print(config)`.
+  var description: String {
+    """
+    Config(
+      targetHandle: \(targetHandle), targetDID: \(targetDID),
+      botHandle: \(botHandle), botPDSURL: \(botPDSURL.absoluteString),
+      botDisplayName: \(botDisplayName),
+      llmBaseURL: \(llmBaseURL.absoluteString), llmModel: \(llmModel),
+      jetstreamURL: \(jetstreamURL.absoluteString), appViewURL: \(appViewURL.absoluteString),
+      stateDirectory: \(stateDirectory.path),
+      botAppPassword: <redacted>, llmAPIKey: <redacted>
+    )
+    """
+  }
+}
