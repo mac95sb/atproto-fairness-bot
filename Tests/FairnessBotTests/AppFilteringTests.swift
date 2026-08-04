@@ -104,6 +104,12 @@ struct AppFilteringTests {
     #expect(FairnessBotApp.qualifyingReply(in: event, targetDID: targetDID) == nil)
   }
 
+  @Test
+  func `Post text is capped at Bluesky's 300-character limit`() {
+    let text = String(repeating: "🦋", count: 301)
+    #expect(FairnessBotApp.boundedPostText(text).count == 300)
+  }
+
   @Test(
     arguments: [
       ("at://did:plc:abc123/app.bsky.feed.post/xyz", "did:plc:abc123"),

@@ -15,7 +15,7 @@ description = "Run the bot locally in the foreground"
 run = "swift run fairness-bot"
 
 [tasks.check-post]
-description = "Evaluate one reply (pass --post to publish an unfair verdict)"
+description = "Evaluate one reply"
 usage = '''
 arg "<post-reference>" help="An AT-URI or Bluesky post URL"
 flag "--post" help="Publish the suggested reply when the verdict is unfair"

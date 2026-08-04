@@ -23,16 +23,20 @@ struct FairnessBotCLI: ParsableCommand {
 
   struct Check: ParsableCommand {
     static let configuration = CommandConfiguration(
-      abstract: "Dry-run a fairness verdict for one reply; never posts.",
+      abstract: "Evaluate one reply, dry-run by default.",
     )
+
+    @Flag(name: .customLong("post"), help: "Post the suggested reply when the verdict is unfair.")
+    var postReply = false
 
     @Argument(help: "An AT-URI or https://bsky.app/profile/<handle-or-did>/post/<rkey> URL.")
     var post: String
 
     func run() throws {
       let post = post
+      let postReply = postReply
       try runBlocking {
-        try await FairnessBotApp.check(post)
+        try await FairnessBotApp.check(post, postIfUnfair: postReply)
       }
     }
   }

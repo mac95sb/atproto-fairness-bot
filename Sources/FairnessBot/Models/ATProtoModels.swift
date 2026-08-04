@@ -39,6 +39,24 @@ struct CreateRecordResponse: Decodable {
   let cid: String
 }
 
+struct PutProfileRecordRequest: Encodable {
+  let repo: String
+  let collection = "app.bsky.actor.profile"
+  let rkey = "self"
+  let record: ProfileRecord
+}
+
+struct ProfileRecord: Encodable {
+  let type = "app.bsky.actor.profile"
+  let displayName: String
+  let description: String
+
+  enum CodingKeys: String, CodingKey {
+    case type = "$type"
+    case displayName, description
+  }
+}
+
 // MARK: - app.bsky.feed.getPosts (public AppView, unauthenticated)
 
 struct GetPostsResponse: Decodable {
@@ -46,6 +64,7 @@ struct GetPostsResponse: Decodable {
 
   struct PostView: Decodable {
     let uri: String
+    let cid: String
     let author: Author
     let record: PostRecord
 

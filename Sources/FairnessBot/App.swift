@@ -10,6 +10,7 @@ enum FairnessBotApp {
     let jetstream = JetstreamClient(config: config)
     let judge = FairnessJudge(config: config)
     let replyLog = ReplyLog(stateDirectory: config.stateDirectory)
+    try await atproto.configureProfile()
 
     try await jetstream.run { event in
       do {
@@ -20,10 +21,9 @@ enum FairnessBotApp {
     }
   }
 
-  /// Evaluates one existing reply without posting or changing the dedupe log.
-  /// This powers the `check` CLI command, which is deliberately dry-run so it
-  /// can be used to inspect a model verdict safely before enabling the watcher.
-  static func check(_ reference: String) async throws {
+  /// Evaluates one existing reply. This is dry-run unless `postIfUnfair` is
+  /// explicit, in which case the posted reply is added to the dedupe log.
+  static func check(_ reference: String, postIfUnfair: Bool = false) async throws {
     let config = try Config()
     let atproto = ATProtoClient(config: config)
     let uri = try await resolvePostURI(PostReference.parse(reference), using: atproto)
@@ -49,9 +49,32 @@ enum FairnessBotApp {
 
     print(verdict.fair ? "FAIR" : "UNFAIR")
     print(verdict.reasoning)
-    if let suggestion = verdict.reply, !suggestion.isEmpty {
-      print("\nSuggested reply (not posted):\n\(suggestion)")
+    guard let suggestion = verdict.reply, !suggestion.isEmpty else { return }
+    let replyText = boundedPostText(suggestion)
+
+    guard postIfUnfair else {
+      print("\nSuggested reply (not posted):\n\(replyText)")
+      return
     }
+
+    let replyLog = ReplyLog(stateDirectory: config.stateDirectory)
+    guard await !replyLog.alreadyReplied(uri) else {
+      print("\nA bot reply was already posted for this post; nothing was published.")
+      return
+    }
+
+    try await atproto.configureProfile()
+    let offendingReply = PostRecord.ReplyRef(
+      root: reply.root,
+      parent: StrongRef(uri: uri, cid: post.cid),
+    )
+    _ = try await atproto.postReply(text: replyText, replyingTo: offendingReply)
+    await replyLog.markReplied(uri)
+    print("\nPosted reply:\n\(replyText)")
+  }
+
+  static func boundedPostText(_ text: String) -> String {
+    String(text.prefix(300))
   }
 
   private static func resolvePostURI(_ reference: PostReference, using atproto: ATProtoClient)
@@ -103,7 +126,7 @@ enum FairnessBotApp {
       root: qualifying.replyRef.root,
       parent: StrongRef(uri: qualifying.uri, cid: qualifying.cid),
     )
-    _ = try await atproto.postReply(text: rebuttalText, replyingTo: offendingReply)
+    _ = try await atproto.postReply(text: boundedPostText(rebuttalText), replyingTo: offendingReply)
     await replyLog.markReplied(qualifying.uri)
     log("Replied to \(qualifying.uri): \(verdict.reasoning)")
   }

@@ -42,6 +42,23 @@ actor ATProtoClient {
     }
   }
 
+  func configureProfile() async throws {
+    let activeSession = try await currentSession()
+    let record = ProfileRecord(
+      displayName: String(config.botDisplayName.prefix(64)),
+      description: String(config.botProfileDescription.prefix(256)),
+    )
+    let body = PutProfileRecordRequest(repo: activeSession.did, record: record)
+    let url = config.botPDSURL.appending(path: "xrpc/com.atproto.repo.putRecord")
+
+    do {
+      let _: CreateRecordResponse = try await send(body, to: url, bearer: activeSession.accessJwt)
+    } catch ATProtoError.unauthorized {
+      let refreshed = try await refresh()
+      let _: CreateRecordResponse = try await send(body, to: url, bearer: refreshed.accessJwt)
+    }
+  }
+
   // MARK: - Reading context (public AppView, no auth needed)
 
   /// Fetches the visible text of the parent and root posts of a reply, plus

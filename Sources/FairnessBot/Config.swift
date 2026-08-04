@@ -14,6 +14,7 @@ struct Config: CustomStringConvertible {
   let botHandle: String
   let botAppPassword: String
   let botDisplayName: String
+  let botProfileDescription: String
 
   let jetstreamURL: URL
   let appViewURL: URL
@@ -66,6 +67,9 @@ struct Config: CustomStringConvertible {
     self.botHandle = botHandle
     self.botAppPassword = botAppPassword
     botDisplayName = environment["BOT_DISPLAY_NAME"] ?? "Fairness Bot"
+    botProfileDescription =
+      environment["BOT_PROFILE_DESCRIPTION"]
+      ?? "A bot that encourages fair, evidence-based discussion."
 
     jetstreamURL = URL(
       string: environment["JETSTREAM_URL"]
@@ -88,6 +92,7 @@ struct Config: CustomStringConvertible {
       targetHandle: \(targetHandle), targetDID: \(targetDID),
       botHandle: \(botHandle), botPDSURL: \(botPDSURL.absoluteString),
       botDisplayName: \(botDisplayName),
+      botProfileDescription: \(botProfileDescription),
       llmBaseURL: \(llmBaseURL.absoluteString), llmModel: \(llmModel),
       jetstreamURL: \(jetstreamURL.absoluteString), appViewURL: \(appViewURL.absoluteString),
       stateDirectory: \(stateDirectory.path),
