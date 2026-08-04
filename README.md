@@ -27,15 +27,17 @@ fairness-bot check <at-uri-or-bsky-url>    # inspect one existing reply
 `check` accepts either an AT-URI or a standard Bluesky post URL:
 
 ```sh
-mise run check-post -- https://bsky.app/profile/someone.bsky.social/post/3kxyz
-mise run check-post -- at://did:plc:example/app.bsky.feed.post/3kxyz
+mise run check-post https://bsky.app/profile/someone.bsky.social/post/3kxyz
+mise run check-post at://did:plc:example/app.bsky.feed.post/3kxyz
+# Explicitly publish the suggested response if (and only if) it is unfair:
+mise run check-post --post https://bsky.app/profile/someone.bsky.social/post/3kxyz
 ```
 
-It is always **dry-run**: it fetches the post and its thread context, prints
-`FAIR` or `UNFAIR`, the model reasoning, and any suggested reply—but never posts
-and never changes the reply-deduplication log. The supplied post must be a reply
-to the configured target account. This is the safe way to assess a model result
-before running the watcher.
+Without `--post`, `check` is **dry-run**: it fetches the post and its thread
+context, then prints `FAIR` or `UNFAIR`, the model reasoning, and any suggested
+reply. With `--post`, it publishes the suggested reply only for an unfair verdict
+and records the target URI in `state/` so the watcher cannot post a duplicate.
+The supplied post must be a reply to the configured target account.
 
 ## How the watcher works
 
@@ -84,6 +86,8 @@ Set all required values:
 - `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` — the OpenAI-compatible provider.
   The template uses Chutes; override all three together for another provider.
 - `BOT_PDS_URL`, `BOT_HANDLE`, `BOT_APP_PASSWORD` — the bot PDS credentials.
+- `BOT_DISPLAY_NAME`, `BOT_PROFILE_DESCRIPTION` — the bot's Bluesky profile.
+  The watcher applies these through the authenticated PDS API at startup.
 
 The target defaults to `maclong.dev` / `did:web:id.maclong.dev`. Override
 `TARGET_HANDLE` and `TARGET_DID` to protect another account.
@@ -103,11 +107,11 @@ Formatting uses the Swift toolchain's built-in formatter: `swift format` and
 ### 4. Try a one-shot dry run
 
 ```sh
-mise run check-post -- https://bsky.app/profile/someone.bsky.social/post/3kxyz
+mise run check-post https://bsky.app/profile/someone.bsky.social/post/3kxyz
 ```
 
 Verify that a fair reply prints `FAIR` and that an unfair reply prints `UNFAIR`
-with a suggested reply. Neither result posts anything.
+with a suggested reply. Add `--post` only when you intend to publish that reply.
 
 ### 5. Run the watcher
 
