@@ -44,30 +44,73 @@ struct FairnessJudge {
     return try Self.parseVerdict(from: content)
   }
 
+  /// Returns the reviewer's minimally edited reply, or `nil` when the reviewer
+  /// rejects the first model's unfairness finding. With no reviewer configured,
+  /// the first model's draft is used unchanged.
+  func reviewedReply(for verdict: FairnessVerdict, context: Context) async throws -> String? {
+    guard !verdict.fair, let candidateReply = verdict.reply, !candidateReply.isEmpty else {
+      return nil
+    }
+    guard let reviewer = config.reviewLLM else { return candidateReply }
+
+    let request = ChatCompletionRequest(
+      model: reviewer.model,
+      messages: [
+        .init(role: "system", content: reviewSystemPrompt),
+        .init(
+          role: "user",
+          content: reviewUserPrompt(for: context, verdict: verdict, candidateReply: candidateReply)),
+      ],
+      temperature: 0,
+    )
+    var urlRequest = URLRequest(url: reviewer.baseURL.appending(path: "chat/completions"))
+    urlRequest.httpMethod = "POST"
+    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    urlRequest.setValue("Bearer \(reviewer.apiKey)", forHTTPHeaderField: "Authorization")
+    urlRequest.httpBody = try JSONEncoder().encode(request)
+
+    let (data, response) = try await urlSession.data(for: urlRequest)
+    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+      throw FairnessJudgeError.requestFailed(status: http.statusCode)
+    }
+    let completion = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+    guard let content = completion.choices.first?.message.content else {
+      throw FairnessJudgeError.emptyResponse
+    }
+    let review = try Self.parseReview(from: content)
+    guard review.approved, let reply = review.reply, !reply.isEmpty else { return nil }
+    return reply
+  }
+
   /// Models sometimes wrap JSON in prose or a markdown code fence despite
   /// instructions not to; fall back to extracting the outermost `{...}`.
   static func parseVerdict(from content: String) throws -> FairnessVerdict {
+    try parseJSON(FairnessVerdict.self, from: content)
+  }
+
+  static func parseReview(from content: String) throws -> ReviewVerdict {
+    try parseJSON(ReviewVerdict.self, from: content)
+  }
+
+  private static func parseJSON<Value: Decodable>(_ type: Value.Type, from content: String) throws
+    -> Value
+  {
     let decoder = JSONDecoder()
     if let data = content.data(using: .utf8),
-      let verdict = try? decoder.decode(FairnessVerdict.self, from: data)
+      let value = try? decoder.decode(Value.self, from: data)
     {
-      return verdict
+      return value
     }
 
     guard let start = content.firstIndex(of: "{"),
       let end = content.lastIndex(of: "}"),
-      start < end
+      start < end,
+      let data = String(content[start...end]).data(using: .utf8),
+      let value = try? decoder.decode(Value.self, from: data)
     else {
       throw FairnessJudgeError.unparsableVerdict(content)
     }
-
-    let jsonSubstring = String(content[start...end])
-    guard let data = jsonSubstring.data(using: .utf8),
-      let verdict = try? decoder.decode(FairnessVerdict.self, from: data)
-    else {
-      throw FairnessJudgeError.unparsableVerdict(content)
-    }
-    return verdict
+    return value
   }
 
   private var systemPrompt: String {
@@ -98,6 +141,36 @@ struct FairnessJudge {
     what a fair, evidence-based version of the same point could have looked \
     like. Model the fairness you're asking for; never use insults, sarcasm, \
     or a condescending tone.
+    """
+  }
+
+  private var reviewSystemPrompt: String {
+    """
+    You are a cautious reviewer of a proposed Bluesky fairness-bot reply. Return ONLY one JSON object:
+    {"approved": true|false, "reasoning": "one sentence", "reply": null|"string"}
+
+    Approve only if the original unfairness finding is supported by the supplied thread and the candidate reply is polite, accurate, and proportionate. If approved, `reply` must contain the candidate with only minimal edits for clarity, factual caution, tone, or the 300-character limit. Do not introduce a new criticism or alter the conclusion. If you reject it, set `reply` to null.
+    """
+  }
+
+  private func reviewUserPrompt(
+    for context: Context, verdict: FairnessVerdict, candidateReply: String
+  ) -> String {
+    """
+    Original post (root of the thread):
+    \(context.rootText ?? "(not available)")
+
+    Message from @\(context.targetHandle) that the new reply is responding to:
+    \(context.parentText ?? "(not available)")
+
+    New reply, posted by @\(context.replyAuthorHandle):
+    \(context.replyText)
+
+    First model's unfairness reasoning:
+    \(verdict.reasoning)
+
+    Candidate reply:
+    \(candidateReply)
     """
   }
 

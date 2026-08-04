@@ -45,6 +45,35 @@ struct ConfigTests {
     #expect(config.botDisplayName == "Custom Bot")
   }
 
+  @Test
+  func `Reviewer model is optional and inherits the primary provider`() throws {
+    var env = baseValidEnv()
+    env["LLM_REVIEW_MODEL"] = "review-model"
+
+    let config = try Config(environment: env)
+    #expect(config.reviewLLM?.model == "review-model")
+    #expect(config.reviewLLM?.baseURL == config.llmBaseURL)
+    #expect(config.reviewLLM?.apiKey == config.llmAPIKey)
+  }
+
+  @Test
+  func `Reviewer provider overrides are optional`() throws {
+    var env = baseValidEnv()
+    env["LLM_REVIEW_MODEL"] = "review-model"
+    env["LLM_REVIEW_BASE_URL"] = ""
+    env["LLM_REVIEW_API_KEY"] = ""
+
+    var config = try Config(environment: env)
+    #expect(config.reviewLLM?.baseURL == config.llmBaseURL)
+    #expect(config.reviewLLM?.apiKey == config.llmAPIKey)
+
+    env["LLM_REVIEW_BASE_URL"] = "https://review.example.com/v1"
+    env["LLM_REVIEW_API_KEY"] = "review-key"
+    config = try Config(environment: env)
+    #expect(config.reviewLLM?.baseURL.absoluteString == "https://review.example.com/v1")
+    #expect(config.reviewLLM?.apiKey == "review-key")
+  }
+
   @Test(
     arguments: [
       "LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL", "BOT_PDS_URL", "BOT_HANDLE", "BOT_APP_PASSWORD",

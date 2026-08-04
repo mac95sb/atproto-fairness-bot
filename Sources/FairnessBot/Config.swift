@@ -6,6 +6,7 @@ struct Config: CustomStringConvertible {
   let llmBaseURL: URL
   let llmAPIKey: String
   let llmModel: String
+  let reviewLLM: ReviewLLM?
 
   let targetHandle: String
   let targetDID: String
@@ -19,6 +20,12 @@ struct Config: CustomStringConvertible {
   let jetstreamURL: URL
   let appViewURL: URL
   let stateDirectory: URL
+
+  struct ReviewLLM {
+    let baseURL: URL
+    let apiKey: String
+    let model: String
+  }
 
   enum ConfigError: Error, CustomStringConvertible {
     case missing([String])
@@ -37,6 +44,11 @@ struct Config: CustomStringConvertible {
         missing.append(key)
         return ""
       }
+      return value
+    }
+
+    func optional(_ key: String) -> String? {
+      guard let value = environment[key], !value.isEmpty else { return nil }
       return value
     }
 
@@ -59,6 +71,20 @@ struct Config: CustomStringConvertible {
     self.llmBaseURL = llmBaseURL
     self.llmAPIKey = llmAPIKey
     self.llmModel = llmModel
+
+    if let reviewModel = optional("LLM_REVIEW_MODEL") {
+      let reviewBaseURLString = optional("LLM_REVIEW_BASE_URL") ?? llmBaseURLString
+      guard let reviewBaseURL = URL(string: reviewBaseURLString) else {
+        throw ConfigError.missing(["LLM_REVIEW_BASE_URL (not a valid URL)"])
+      }
+      reviewLLM = ReviewLLM(
+        baseURL: reviewBaseURL,
+        apiKey: optional("LLM_REVIEW_API_KEY") ?? llmAPIKey,
+        model: reviewModel,
+      )
+    } else {
+      reviewLLM = nil
+    }
 
     targetHandle = environment["TARGET_HANDLE"] ?? "maclong.dev"
     targetDID = environment["TARGET_DID"] ?? "did:web:id.maclong.dev"
@@ -94,6 +120,7 @@ struct Config: CustomStringConvertible {
       botDisplayName: \(botDisplayName),
       botProfileDescription: \(botProfileDescription),
       llmBaseURL: \(llmBaseURL.absoluteString), llmModel: \(llmModel),
+      reviewLLM: \(reviewLLM?.model ?? "<disabled>"),
       jetstreamURL: \(jetstreamURL.absoluteString), appViewURL: \(appViewURL.absoluteString),
       stateDirectory: \(stateDirectory.path),
       botAppPassword: <redacted>, llmAPIKey: <redacted>

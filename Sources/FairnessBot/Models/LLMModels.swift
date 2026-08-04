@@ -31,3 +31,10 @@ struct FairnessVerdict: Decodable {
   let reasoning: String
   let reply: String?
 }
+
+/// A second model's approval of an unfair verdict and minimally edited reply.
+struct ReviewVerdict: Decodable {
+  let approved: Bool
+  let reasoning: String
+  let reply: String?
+}

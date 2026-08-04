@@ -37,20 +37,26 @@ enum FairnessBotApp {
     }
 
     let context = try await atproto.fetchContext(replyURI: uri, reply: reply)
-    let verdict = try await FairnessJudge(config: config).judge(
-      FairnessJudge.Context(
-        targetHandle: config.targetHandle,
-        rootText: context.rootText,
-        parentText: context.parentText,
-        replyAuthorHandle: post.author.handle,
-        replyText: post.record.text ?? "",
-      ),
+    let judge = FairnessJudge(config: config)
+    let judgeContext = FairnessJudge.Context(
+      targetHandle: config.targetHandle,
+      rootText: context.rootText,
+      parentText: context.parentText,
+      replyAuthorHandle: post.author.handle,
+      replyText: post.record.text ?? "",
     )
+    let verdict = try await judge.judge(judgeContext)
 
     print(verdict.fair ? "FAIR" : "UNFAIR")
     print(verdict.reasoning)
-    guard let suggestion = verdict.reply, !suggestion.isEmpty else { return }
-    let replyText = boundedPostText(suggestion)
+    guard
+      let reviewedReply = try await judge.reviewedReply(
+        for: verdict, context: judgeContext)
+    else {
+      print("\nNo reply was approved for publication.")
+      return
+    }
+    let replyText = boundedPostText(reviewedReply)
 
     guard postIfUnfair else {
       print("\nSuggested reply (not posted):\n\(replyText)")
@@ -108,17 +114,19 @@ enum FairnessBotApp {
 
     let context = try await atproto.fetchContext(
       replyURI: qualifying.uri, reply: qualifying.replyRef)
-    let verdict = try await judge.judge(
-      FairnessJudge.Context(
-        targetHandle: config.targetHandle,
-        rootText: context.rootText,
-        parentText: context.parentText,
-        replyAuthorHandle: context.replyAuthorHandle ?? qualifying.authorDID,
-        replyText: qualifying.text,
-      ),
+    let judgeContext = FairnessJudge.Context(
+      targetHandle: config.targetHandle,
+      rootText: context.rootText,
+      parentText: context.parentText,
+      replyAuthorHandle: context.replyAuthorHandle ?? qualifying.authorDID,
+      replyText: qualifying.text,
     )
+    let verdict = try await judge.judge(judgeContext)
 
-    guard !verdict.fair, let rebuttalText = verdict.reply, !rebuttalText.isEmpty else {
+    guard !verdict.fair else { return }
+    guard let rebuttalText = try await judge.reviewedReply(for: verdict, context: judgeContext)
+    else {
+      log("Reviewer did not approve a reply to \(qualifying.uri)")
       return
     }
 

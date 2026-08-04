@@ -85,6 +85,10 @@ Set all required values:
 
 - `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` — the OpenAI-compatible provider.
   The template uses Chutes; override all three together for another provider.
+- `LLM_REVIEW_MODEL` — optional second-model gate. When set, the reviewer sees
+  the first verdict and draft, then either rejects publication or supplies the
+  final, minimally edited reply. `LLM_REVIEW_BASE_URL` and `LLM_REVIEW_API_KEY`
+  are optional overrides; otherwise the primary provider credentials are used.
 - `BOT_PDS_URL`, `BOT_HANDLE`, `BOT_APP_PASSWORD` — the bot PDS credentials.
 - `BOT_DISPLAY_NAME`, `BOT_PROFILE_DESCRIPTION` — the bot's Bluesky profile.
   The watcher applies these through the authenticated PDS API at startup.

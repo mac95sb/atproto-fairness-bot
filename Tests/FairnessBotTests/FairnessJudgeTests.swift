@@ -46,6 +46,16 @@ struct FairnessJudgeTests {
     #expect(verdict.fair == true)
   }
 
+  @Test
+  func `Approved review supplies the final reply`() throws {
+    let content =
+      #"{"approved": true, "reasoning": "Softened the claim.", "reply": "Please address the point directly."}"#
+    let review = try FairnessJudge.parseReview(from: content)
+
+    #expect(review.approved == true)
+    #expect(review.reply == "Please address the point directly.")
+  }
+
   @Test(
     arguments: ["", "not json at all", "{\"fair\": \"not-a-bool\"}", "{"],
   )
