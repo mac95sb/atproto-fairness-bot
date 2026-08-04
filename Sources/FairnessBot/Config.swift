@@ -92,10 +92,10 @@ struct Config: CustomStringConvertible {
     self.botPDSURL = botPDSURL
     self.botHandle = botHandle
     self.botAppPassword = botAppPassword
-    botDisplayName = environment["BOT_DISPLAY_NAME"] ?? "Fairness Bot"
+    botDisplayName = environment["BOT_DISPLAY_NAME"] ?? "Fairness Bot 🤖"
     botProfileDescription =
       environment["BOT_PROFILE_DESCRIPTION"]
-      ?? "A bot that encourages fair, evidence-based discussion."
+      ?? "Automated account that encourages fair, evidence-based discussion."
 
     jetstreamURL = URL(
       string: environment["JETSTREAM_URL"]

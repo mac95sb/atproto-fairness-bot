@@ -23,7 +23,10 @@ struct ConfigTests {
     #expect(config.llmModel == "test-model")
     #expect(config.targetHandle == "maclong.dev")
     #expect(config.targetDID == "did:web:id.maclong.dev")
-    #expect(config.botDisplayName == "Fairness Bot")
+    #expect(config.botDisplayName == "Fairness Bot 🤖")
+    #expect(
+      config.botProfileDescription
+        == "Automated account that encourages fair, evidence-based discussion.")
     #expect(config.jetstreamURL.absoluteString == "wss://jetstream2.us-east.bsky.network/subscribe")
   }
 

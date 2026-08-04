@@ -14,6 +14,10 @@ run = "swift build -c release"
 description = "Run the bot locally in the foreground"
 run = "swift run fairness-bot"
 
+[tasks.setup-profile]
+description = "Apply the configured bot display name and profile description"
+run = "swift run fairness-bot setup-profile"
+
 [tasks.check-post]
 description = "Evaluate one reply"
 usage = '''

@@ -5,7 +5,7 @@ struct FairnessBotCLI: ParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "fairness-bot",
     abstract: "Watch Bluesky replies and flag unfair engagement.",
-    subcommands: [Watch.self, Check.self],
+    subcommands: [Watch.self, Check.self, SetupProfile.self],
     defaultSubcommand: Watch.self,
   )
 
@@ -17,6 +17,22 @@ struct FairnessBotCLI: ParsableCommand {
     func run() throws {
       try runBlocking {
         try await FairnessBotApp.run()
+      }
+    }
+  }
+
+  struct SetupProfile: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "setup-profile",
+      abstract: "Apply the configured profile and Bluesky automation label.",
+    )
+
+    func run() throws {
+      try runBlocking {
+        let config = try Config()
+        let atproto = ATProtoClient(config: config)
+        try await atproto.configureProfile()
+        print("Bot profile updated for @\(config.botHandle).")
       }
     }
   }

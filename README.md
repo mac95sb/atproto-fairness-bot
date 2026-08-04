@@ -91,10 +91,20 @@ Set all required values:
   are optional overrides; otherwise the primary provider credentials are used.
 - `BOT_PDS_URL`, `BOT_HANDLE`, `BOT_APP_PASSWORD` — the bot PDS credentials.
 - `BOT_DISPLAY_NAME`, `BOT_PROFILE_DESCRIPTION` — the bot's Bluesky profile.
-  The watcher applies these through the authenticated PDS API at startup.
+  The watcher applies these through the authenticated PDS API at startup, including
+  Bluesky's native `bot` self-label so the account is visibly marked as automated.
 
 The target defaults to `maclong.dev` / `did:web:id.maclong.dev`. Override
 `TARGET_HANDLE` and `TARGET_DID` to protect another account.
+
+Apply the configured `BOT_DISPLAY_NAME` and `BOT_PROFILE_DESCRIPTION` immediately.
+This also enables Bluesky's native automation label:
+
+```sh
+mise run setup-profile
+```
+
+The watcher also applies the profile at startup.
 
 ### 3. Install and validate
 

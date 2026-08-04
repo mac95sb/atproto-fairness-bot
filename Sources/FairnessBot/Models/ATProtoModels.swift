@@ -50,11 +50,26 @@ struct ProfileRecord: Encodable {
   let type = "app.bsky.actor.profile"
   let displayName: String
   let description: String
+  let labels = SelfLabels(values: [SelfLabel(val: "bot")])
 
   enum CodingKeys: String, CodingKey {
     case type = "$type"
-    case displayName, description
+    case displayName, description, labels
   }
+}
+
+struct SelfLabels: Encodable {
+  let type = "com.atproto.label.defs#selfLabels"
+  let values: [SelfLabel]
+
+  enum CodingKeys: String, CodingKey {
+    case type = "$type"
+    case values
+  }
+}
+
+struct SelfLabel: Encodable {
+  let val: String
 }
 
 // MARK: - app.bsky.feed.getPosts (public AppView, unauthenticated)
