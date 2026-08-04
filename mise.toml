@@ -1,0 +1,61 @@
+[tools]
+swift = "latest"
+hk = "latest"
+pitchfork = "latest"
+
+[env]
+_.file = ".env"
+
+[tasks.build]
+description = "Build the release binary"
+run = "swift build -c release"
+
+[tasks.run]
+description = "Run the bot locally in the foreground"
+run = "swift run fairness-bot"
+
+[tasks.check-post]
+description = "Evaluate one reply (pass --post to publish an unfair verdict)"
+usage = '''
+arg "<post-reference>" help="An AT-URI or Bluesky post URL"
+flag "--post" help="Publish the suggested reply when the verdict is unfair"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+args=(check "${usage_post_reference?}")
+if [ "${usage_post:-false}" = "true" ]; then
+  args+=(--post)
+fi
+exec swift run fairness-bot "${args[@]}"
+'''
+
+[tasks.test]
+description = "Run the test suite"
+run = "swift test"
+
+[tasks.fmt]
+description = "Format Swift sources"
+run = "swift format -i --recursive Sources Tests Package.swift"
+
+[tasks."fmt:check"]
+description = "Check formatting without modifying files"
+run = "swift format lint --recursive Sources Tests Package.swift --strict"
+
+[tasks.check]
+description = "Check formatting and run tests"
+depends = ["fmt:check", "test"]
+
+[tasks.start]
+description = "Start the bot under pitchfork supervision"
+depends = ["build"]
+run = "pitchfork start fairness-bot"
+
+[tasks.stop]
+description = "Stop the pitchfork-supervised bot"
+run = "pitchfork stop fairness-bot"
+
+[tasks.logs]
+description = "Tail the bot's logs"
+run = "pitchfork logs fairness-bot --tail"

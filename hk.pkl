@@ -1,0 +1,27 @@
+amends "package://github.com/jdx/hk/releases/download/v1.54.0/hk@1.54.0#/Config.pkl"
+
+min_hk_version = "1.54.0"
+exclude = List(".build", "state")
+
+local formattedFiles = List(
+  "*.swift", "**/*.swift",
+)
+
+local formatters = new Mapping<String, Step> {
+  ["swift-format"] {
+    glob = formattedFiles
+    check = "swift format lint --strict {{files}}"
+    fix = "swift format -i {{files}}"
+  }
+}
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = formatters
+  }
+  ["check"] {
+    steps = formatters
+  }
+}
