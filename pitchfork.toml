@@ -1,0 +1,6 @@
+[daemons.fairness-bot]
+run = ".build/release/fairness-bot"
+dir = "."
+mise = true
+retry = true
+boot_start = true
