@@ -27,9 +27,17 @@ struct ChatCompletionResponse: Decodable {
 
 /// The structured verdict the model is prompted to return as its message content (JSON text).
 struct FairnessVerdict: Decodable {
-  let fair: Bool
+  let isDebate: Bool
+  let score: Int?
   let reasoning: String
   let reply: String?
+
+  /// No callout is warranted for general conversation (`isDebate == false`)
+  /// — only actual pushback/disagreement gets a fairness judgment at all.
+  func isFair(threshold: Int) -> Bool {
+    guard isDebate, let score else { return true }
+    return score >= threshold
+  }
 }
 
 /// A second model's approval of an unfair verdict and minimally edited reply.

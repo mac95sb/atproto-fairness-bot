@@ -105,7 +105,36 @@ struct AppFilteringTests {
   }
 
   @Test
-  func `Post text is capped at Bluesky's 300-character limit`() {
+  func `Post text under the limit is returned unchanged`() {
+    let text = "Short reply, well under budget."
+    #expect(FairnessBotApp.boundedPostText(text) == text)
+  }
+
+  @Test
+  func `Post text over the limit truncates at the last sentence boundary`() {
+    let sentence = "This is a fairly long sentence made of enough words to matter. "
+    let text = String(repeating: sentence, count: 5)
+    let result = FairnessBotApp.boundedPostText(text)
+
+    #expect(result.count <= 300)
+    #expect(result.hasSuffix("."))
+    #expect(result != String(text.prefix(300)))
+  }
+
+  @Test
+  func `Post text with no sentence punctuation truncates at the last word boundary`() {
+    let word = "supercalifragilisticexpialidocious "
+    let text = String(repeating: word, count: 10)
+    let result = FairnessBotApp.boundedPostText(text)
+
+    #expect(result.count <= 300)
+    #expect(!result.hasSuffix(" "))
+    #expect(text.hasPrefix(result))
+    #expect(result != String(text.prefix(300)))
+  }
+
+  @Test
+  func `Post text with no usable boundary falls back to a hard 300 cut`() {
     let text = String(repeating: "🦋", count: 301)
     #expect(FairnessBotApp.boundedPostText(text).count == 300)
   }

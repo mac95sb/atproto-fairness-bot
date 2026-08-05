@@ -16,10 +16,12 @@ struct Config: CustomStringConvertible {
   let botAppPassword: String
   let botDisplayName: String
   let botProfileDescription: String
+  let botAvatarPath: URL
 
   let jetstreamURL: URL
   let appViewURL: URL
   let stateDirectory: URL
+  let fairnessScoreThreshold: Int
 
   struct ReviewLLM {
     let baseURL: URL
@@ -92,10 +94,13 @@ struct Config: CustomStringConvertible {
     self.botPDSURL = botPDSURL
     self.botHandle = botHandle
     self.botAppPassword = botAppPassword
-    botDisplayName = environment["BOT_DISPLAY_NAME"] ?? "Fairness Bot 🤖"
+    botDisplayName = environment["BOT_DISPLAY_NAME"] ?? "Fairness Bot"
     botProfileDescription =
       environment["BOT_PROFILE_DESCRIPTION"]
       ?? "Automated account that encourages fair, evidence-based discussion."
+    botAvatarPath = URL(
+      fileURLWithPath: environment["BOT_AVATAR_PATH"] ?? "assets/logo.jpg",
+    )
 
     jetstreamURL = URL(
       string: environment["JETSTREAM_URL"]
@@ -108,6 +113,15 @@ struct Config: CustomStringConvertible {
       fileURLWithPath: environment["STATE_DIR"] ?? "state",
       isDirectory: true,
     )
+
+    if let thresholdString = optional("FAIRNESS_SCORE_THRESHOLD") {
+      guard let threshold = Int(thresholdString) else {
+        throw ConfigError.missing(["FAIRNESS_SCORE_THRESHOLD (not a valid integer)"])
+      }
+      fairnessScoreThreshold = threshold
+    } else {
+      fairnessScoreThreshold = 60
+    }
   }
 
   /// Redacted on purpose: never let the app password or API key end up in logs,
@@ -122,7 +136,7 @@ struct Config: CustomStringConvertible {
       llmBaseURL: \(llmBaseURL.absoluteString), llmModel: \(llmModel),
       reviewLLM: \(reviewLLM?.model ?? "<disabled>"),
       jetstreamURL: \(jetstreamURL.absoluteString), appViewURL: \(appViewURL.absoluteString),
-      stateDirectory: \(stateDirectory.path),
+      stateDirectory: \(stateDirectory.path), fairnessScoreThreshold: \(fairnessScoreThreshold),
       botAppPassword: <redacted>, llmAPIKey: <redacted>
     )
     """

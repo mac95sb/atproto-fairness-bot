@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "dev.maclong.feed.verdict",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A fairness-bot verdict on a reply, published alongside the callout reply it triggered.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "reply", "score", "reasoning", "replyText", "createdAt"],
+        "properties": {
+          "subject": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "The reply post being judged."
+          },
+          "reply": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "The bot's own callout reply, posted in response to the subject."
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "How fairly the subject engaged, from 0 (pure hostility, no substance) to 100 (fully fair and evidence-based)."
+          },
+          "reasoning": {
+            "type": "string",
+            "description": "The judge's explanation for the score."
+          },
+          "replyText": {
+            "type": "string",
+            "description": "The exact text of the bot's callout reply."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

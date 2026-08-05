@@ -1,10 +1,16 @@
 # atproto-fairness-bot
 
-Watches replies to an AT Protocol / Bluesky account, asks a configured
-OpenAI-compatible LLM whether each reply engages fairly—with evidence and
-substance rather than insults, sarcasm, or strawmanning—and only when it is
-judged **unfair**, posts a short, polite public reply. Fair replies get no
-response.
+Watches replies to an AT Protocol / Bluesky account. Only replies that are
+actually pushing back on or disagreeing with the point — debate, not general
+conversation — get a fairness judgment at all; friendly agreement,
+compliments, jokes, and unrelated banter are skipped entirely. For debate
+replies, a configured OpenAI-compatible LLM scores how fairly the reply
+engages—with evidence and substance rather than insults, sarcasm, or
+strawmanning—on a scale of 0-100, and only when that score falls below a
+configurable threshold, the bot posts a short, polite public reply. Every
+posted reply is paired with a `dev.maclong.feed.verdict` record (see [Verdict
+lexicon](#verdict-lexicon)) published to the bot's own repo, so its judging
+activity is a structured, public part of the network.
 
 The bot is a Swift process that watches the network through
 [Jetstream](https://github.com/bluesky-social/jetstream), a filtered JSON
@@ -34,10 +40,13 @@ mise run check-post --post https://bsky.app/profile/someone.bsky.social/post/3kx
 ```
 
 Without `--post`, `check` is **dry-run**: it fetches the post and its thread
-context, then prints `FAIR` or `UNFAIR`, the model reasoning, and any suggested
-reply. With `--post`, it publishes the suggested reply only for an unfair verdict
-and records the target URI in `state/` so the watcher cannot post a duplicate.
-The supplied post must be a reply to the configured target account.
+context, then prints `FAIR`/`UNFAIR` with the fairness score out of 100 (or
+`N/A` if the reply isn't a debate response at all), the model reasoning, and
+any suggested reply. With `--post`, it publishes the
+suggested reply only for an unfair verdict, records the target URI in
+`state/` so the watcher cannot post a duplicate, and publishes a
+`dev.maclong.feed.verdict` record alongside it. The supplied post must be a
+reply to the configured target account.
 
 ## How the watcher works
 
@@ -46,8 +55,14 @@ The supplied post must be a reply to the configured target account.
    configured target account. Replies to somebody else's reply are ignored,
    even when that nested thread appears below one of the target's posts.
 3. Fetches the root and parent posts from the public Bluesky AppView.
-4. Requests a fairness verdict from the configured LLM.
-5. When unfair, posts the model's concise suggested reply from the bot account.
+4. Asks the configured LLM whether the reply is a debate response at all
+   (disagreement, pushback, criticism) as opposed to general conversation.
+   Non-debate replies stop here — no score, no reply. Debate replies get a
+   fairness score (0-100) and reasoning.
+5. When the score is below `FAIRNESS_SCORE_THRESHOLD`, posts the model's
+   concise suggested reply from the bot account, then publishes a
+   `dev.maclong.feed.verdict` record referencing both posts (see [Verdict
+   lexicon](#verdict-lexicon)).
 6. Persists its Jetstream cursor and replied-to URIs in `state/`, so restart
    recovery catches up on retained events without duplicate replies.
 
@@ -93,6 +108,11 @@ Set all required values:
 - `BOT_DISPLAY_NAME`, `BOT_PROFILE_DESCRIPTION` — the bot's Bluesky profile.
   The watcher applies these through the authenticated PDS API at startup, including
   Bluesky's native `bot` self-label so the account is visibly marked as automated.
+  The bot's avatar is applied the same way, uploaded from `assets/logo.jpg`
+  (override with `BOT_AVATAR_PATH`); a missing or failed avatar upload never
+  blocks the display name/description update.
+- `FAIRNESS_SCORE_THRESHOLD` — optional, defaults to `60`. Replies scoring
+  below this (out of 100) are treated as unfair and get a callout reply.
 
 The target defaults to `maclong.dev` / `did:web:id.maclong.dev`. Override
 `TARGET_HANDLE` and `TARGET_DID` to protect another account.
@@ -158,6 +178,26 @@ pitchfork list
 - `mise run test` — Swift Testing suite
 - `mise run check` — formatter lint plus tests
 - `hk` runs the same built-in Swift formatter before commits
+
+## Verdict lexicon
+
+Every reply the bot actually posts is paired with a `dev.maclong.feed.verdict`
+record, published to the bot's own PDS repo — a structured, public log of the
+bot's judging activity, distinct from the reply thread itself. Its schema
+lives at [`lexicons/dev.maclong.feed.verdict.json`](lexicons/dev.maclong.feed.verdict.json)
+and contains:
+
+- `subject` — strong ref to the reply post that was judged
+- `reply` — strong ref to the bot's own callout reply
+- `score` — the fairness score (0-100) that triggered the reply
+- `reasoning` — the judge's explanation
+- `replyText` — the exact text posted
+- `createdAt` — publish timestamp
+
+Verdict records are only published when a reply is actually posted (never for
+fair verdicts or dry-run `check` calls), and a publish failure never blocks or
+retries the reply itself — it's a best-effort record of an action already
+taken.
 
 ## Running your own instance
 

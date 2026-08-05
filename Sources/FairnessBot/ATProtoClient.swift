@@ -36,13 +36,55 @@ actor ATProtoClient {
   }
 
   func configureProfile() async throws {
+    // Best-effort: a missing avatar file or a failed upload shouldn't block
+    // the required displayName/description update.
+    let avatarBlob = try? await uploadAvatarBlob()
     let url = config.botPDSURL.appending(path: "xrpc/com.atproto.repo.putRecord")
     let _: CreateRecordResponse = try await sendWithRefresh(to: url) { session in
       let record = ProfileRecord(
         displayName: String(config.botDisplayName.prefix(64)),
         description: String(config.botProfileDescription.prefix(256)),
+        avatar: avatarBlob,
       )
       return PutProfileRecordRequest(repo: session.did, record: record)
+    }
+  }
+
+  private func uploadAvatarBlob() async throws -> BlobRef {
+    let data = try Data(contentsOf: config.botAvatarPath)
+    let session = try await currentSession()
+    let url = config.botPDSURL.appending(path: "xrpc/com.atproto.repo.uploadBlob")
+    var urlRequest = URLRequest(url: url)
+    urlRequest.httpMethod = "POST"
+    urlRequest.setValue(avatarMimeType, forHTTPHeaderField: "Content-Type")
+    urlRequest.setValue("Bearer \(session.accessJwt)", forHTTPHeaderField: "Authorization")
+    urlRequest.httpBody = data
+
+    let (responseData, response) = try await urlSession.data(for: urlRequest)
+    try Self.checkStatus(response, data: responseData)
+    return try JSONDecoder().decode(UploadBlobResponse.self, from: responseData).blob
+  }
+
+  /// Bluesky's `app.bsky.actor.profile` lexicon only accepts `image/png` and
+  /// `image/jpeg` avatar blobs, so this maps the configured file's extension
+  /// rather than assuming one.
+  private var avatarMimeType: String {
+    switch config.botAvatarPath.pathExtension.lowercased() {
+    case "png": "image/png"
+    default: "image/jpeg"
+    }
+  }
+
+  func publishVerdict(
+    subject: StrongRef, reply: StrongRef, score: Int, reasoning: String, replyText: String,
+  ) async throws -> CreateRecordResponse {
+    let url = config.botPDSURL.appending(path: "xrpc/com.atproto.repo.createRecord")
+    return try await sendWithRefresh(to: url) { session in
+      let record = VerdictRecord(
+        subject: subject, reply: reply, score: score, reasoning: reasoning,
+        replyText: replyText, createdAt: ISO8601DateFormatter().string(from: Date()))
+      return CreateRecordRequest(
+        repo: session.did, collection: "dev.maclong.feed.verdict", record: record)
     }
   }
 

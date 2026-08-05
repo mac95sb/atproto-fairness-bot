@@ -47,7 +47,12 @@ enum FairnessBotApp {
     )
     let verdict = try await judge.judge(judgeContext)
 
-    print(verdict.fair ? "FAIR" : "UNFAIR")
+    if let score = verdict.score {
+      let isFair = verdict.isFair(threshold: config.fairnessScoreThreshold)
+      print("\(isFair ? "FAIR" : "UNFAIR") (\(score)/100)")
+    } else {
+      print("N/A — general conversation, no fairness score.")
+    }
     print(verdict.reasoning)
     guard
       let reviewedReply = try await judge.reviewedReply(
@@ -74,13 +79,59 @@ enum FairnessBotApp {
       root: reply.root,
       parent: StrongRef(uri: uri, cid: post.cid),
     )
-    _ = try await atproto.postReply(text: replyText, replyingTo: offendingReply)
+    let response = try await atproto.postReply(text: replyText, replyingTo: offendingReply)
     await replyLog.markReplied(uri)
     print("\nPosted reply:\n\(replyText)")
+
+    do {
+      _ = try await atproto.publishVerdict(
+        subject: StrongRef(uri: uri, cid: post.cid),
+        reply: StrongRef(uri: response.uri, cid: response.cid),
+        score: verdict.score ?? 0, reasoning: verdict.reasoning, replyText: replyText)
+    } catch {
+      print("Failed to publish verdict record: \(error)")
+    }
   }
 
+  /// Bluesky's hard 300-Unicode-character post limit. The LLM (and reviewer,
+  /// when configured) are instructed to stay under this themselves, so this
+  /// should rarely trigger — but as a last-resort safety net it truncates
+  /// any overrun. Rather than a blind character cut, it prefers the last
+  /// sentence boundary, then the last word boundary, so a rare overrun
+  /// degrades gracefully instead of chopping off mid-word.
   static func boundedPostText(_ text: String) -> String {
-    String(text.prefix(300))
+    guard text.count > 300 else { return text }
+    log(
+      "LLM reply exceeded the 300-character limit (\(text.count) chars); truncating at a boundary.")
+
+    let hardLimit = String(text.prefix(300))
+    // Don't truncate so aggressively that a boundary far from the limit
+    // leaves almost nothing — require the kept text to be a reasonable
+    // majority of the budget.
+    let minKeptLength = 150
+
+    if let sentence = lastBoundary(in: hardLimit, at: [".", "!", "?"], minLength: minKeptLength) {
+      return sentence
+    }
+    if let word = lastBoundary(
+      in: hardLimit, at: [" "], minLength: minKeptLength, dropDelimiter: true)
+    {
+      return word
+    }
+    return hardLimit
+  }
+
+  /// Returns the text up to and including the last occurrence of any
+  /// character in `delimiters`, provided that prefix is at least
+  /// `minLength` characters. When `dropDelimiter` is true, the delimiter
+  /// itself is excluded (used for word boundaries, where trailing
+  /// whitespace shouldn't be kept; sentence punctuation is kept).
+  private static func lastBoundary(
+    in text: String, at delimiters: Set<Character>, minLength: Int, dropDelimiter: Bool = false,
+  ) -> String? {
+    guard let index = text.lastIndex(where: { delimiters.contains($0) }) else { return nil }
+    let candidate = dropDelimiter ? String(text[..<index]) : String(text[...index])
+    return candidate.count >= minLength ? candidate : nil
   }
 
   private static func resolvePostURI(_ reference: PostReference, using atproto: ATProtoClient)
@@ -123,7 +174,7 @@ enum FairnessBotApp {
     )
     let verdict = try await judge.judge(judgeContext)
 
-    guard !verdict.fair else { return }
+    guard !verdict.isFair(threshold: config.fairnessScoreThreshold) else { return }
     guard let rebuttalText = try await judge.reviewedReply(for: verdict, context: judgeContext)
     else {
       log("Reviewer did not approve a reply to \(qualifying.uri)")
@@ -134,9 +185,19 @@ enum FairnessBotApp {
       root: qualifying.replyRef.root,
       parent: StrongRef(uri: qualifying.uri, cid: qualifying.cid),
     )
-    _ = try await atproto.postReply(text: boundedPostText(rebuttalText), replyingTo: offendingReply)
+    let replyText = boundedPostText(rebuttalText)
+    let response = try await atproto.postReply(text: replyText, replyingTo: offendingReply)
     await replyLog.markReplied(qualifying.uri)
     log("Replied to \(qualifying.uri): \(verdict.reasoning)")
+
+    do {
+      _ = try await atproto.publishVerdict(
+        subject: StrongRef(uri: qualifying.uri, cid: qualifying.cid),
+        reply: StrongRef(uri: response.uri, cid: response.cid),
+        score: verdict.score ?? 0, reasoning: verdict.reasoning, replyText: replyText)
+    } catch {
+      log("Failed to publish verdict record for \(qualifying.uri): \(error)")
+    }
   }
 
   /// A Jetstream event that has passed every synchronous, network-free check:
