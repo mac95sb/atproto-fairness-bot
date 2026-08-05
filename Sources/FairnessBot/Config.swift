@@ -99,7 +99,7 @@ struct Config: CustomStringConvertible {
       environment["BOT_PROFILE_DESCRIPTION"]
       ?? "Automated account that encourages fair, evidence-based discussion."
     botAvatarPath = URL(
-      fileURLWithPath: environment["BOT_AVATAR_PATH"] ?? "assets/logo.jpg",
+      fileURLWithPath: environment["BOT_AVATAR_PATH"] ?? "assets/logo.png",
     )
 
     jetstreamURL = URL(

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="124" height="124" viewBox="0 0 124 124" fill="none" role="img" aria-label="Fairness Bot logo">
+  <circle cx="62" cy="62" r="62" fill="#F4F7F4"/>
+  <circle cx="62" cy="62" r="60" stroke="#9CCFC8" stroke-opacity=".65" stroke-width="2"/>
+  <path d="M29 68C39 71 49 68 57 60C62 66 69 69 78 68C87 67 93 61 98 53C94 69 84 81 70 85C57 89 42 84 29 72V68Z" fill="#182524"/>
+  <path d="M30 69C43 71 54 66 63 56C69 64 80 66 97 53" stroke="#536D68" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="86" cy="43" r="3.5" fill="#54BDAF"/>
+</svg>

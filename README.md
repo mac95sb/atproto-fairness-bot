@@ -108,7 +108,7 @@ Set all required values:
 - `BOT_DISPLAY_NAME`, `BOT_PROFILE_DESCRIPTION` — the bot's Bluesky profile.
   The watcher applies these through the authenticated PDS API at startup, including
   Bluesky's native `bot` self-label so the account is visibly marked as automated.
-  The bot's avatar is applied the same way, uploaded from `assets/logo.jpg`
+  The bot's avatar is applied the same way, uploaded from `assets/logo.png`
   (override with `BOT_AVATAR_PATH`); a missing or failed avatar upload never
   blocks the display name/description update.
 - `FAIRNESS_SCORE_THRESHOLD` — optional, defaults to `60`. Replies scoring
