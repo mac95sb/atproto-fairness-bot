@@ -2,7 +2,7 @@ import Foundation
 
 /// All bot behavior is driven by environment variables so anyone can point this
 /// at their own PDS/account and LLM provider without touching source. See `.env.example`.
-struct Config: CustomStringConvertible {
+public struct Config: CustomStringConvertible, Sendable {
   /// The OpenAI-compatible provider's API base URL; `chat/completions` is appended to it.
   let llmBaseURL: URL
   /// The bearer token for the primary LLM provider.
@@ -20,7 +20,7 @@ struct Config: CustomStringConvertible {
   /// The bot's own PDS service endpoint.
   let botPDSURL: URL
   /// The bot's own handle.
-  let botHandle: String
+  public let botHandle: String
   /// An app password for the bot's own account.
   let botAppPassword: String
   /// The display name applied to the bot's Bluesky profile.
@@ -42,18 +42,18 @@ struct Config: CustomStringConvertible {
   let isSelfReviewEnabled: Bool
 
   /// The optional second-model reviewer's provider configuration.
-  struct ReviewLLM {
+  struct ReviewLLM: Sendable {
     let baseURL: URL
     let apiKey: String
     let model: String
   }
 
   /// An error raised while loading configuration from the environment.
-  enum ConfigError: Error, CustomStringConvertible {
+  public enum ConfigError: Error, CustomStringConvertible {
     /// One or more required environment variables were missing or invalid; lists them by name.
     case missing([String])
 
-    var description: String {
+    public var description: String {
       switch self {
       case .missing(let keys):
         "Missing required environment variable(s): \(keys.joined(separator: ", "))"
@@ -68,7 +68,7 @@ struct Config: CustomStringConvertible {
   ///   environment.
   /// - Throws: `ConfigError.missing` if a required variable is absent, or if a variable
   ///   that must parse as a URL or integer does not.
-  init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
+  public init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
     func required(_ key: String, missing: inout [String]) -> String {
       guard let value = environment[key], !value.isEmpty else {
         missing.append(key)
@@ -157,7 +157,7 @@ struct Config: CustomStringConvertible {
 
   /// Redacted on purpose: never let the app password or API key end up in logs,
   /// error messages, or an accidental `print(config)`.
-  var description: String {
+  public var description: String {
     """
     Config(
       targetHandle: \(targetHandle), targetDID: \(targetDID),

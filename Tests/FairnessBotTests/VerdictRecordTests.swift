@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import fairness_bot
+@testable import FairnessBotCore
 
 @Suite("Verdict record")
 struct VerdictRecordTests {

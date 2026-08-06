@@ -1,14 +1,14 @@
 import Foundation
 
 /// The bot's top-level entry points: the continuous watcher and the one-shot `check` command.
-enum FairnessBotApp {
+public enum FairnessBotApp {
   /// Loads configuration, applies the bot's profile, and watches Jetstream forever,
   /// judging and acting on each qualifying reply as it arrives.
   ///
   /// - Throws: `Config.ConfigError` if configuration is invalid; rethrows any error from
   ///   applying the bot's profile. Errors while handling an individual event are logged and
   ///   do not stop the watcher.
-  static func run() async throws {
+  public static func run() async throws {
     let config = try Config()
     log("Starting fairness bot")
     log(config.description)
@@ -39,7 +39,7 @@ enum FairnessBotApp {
   /// - Throws: `CommandLineError.notAReplyToTarget` if the referenced post isn't a reply to
   ///   the configured target account; rethrows any error from resolving, fetching, judging,
   ///   or posting.
-  static func check(_ reference: String, postIfUnfair: Bool = false) async throws {
+  public static func check(_ reference: String, postIfUnfair: Bool = false) async throws {
     let config = try Config()
     let atproto = ATProtoClient(config: config)
     let uri = try await resolvePostURI(PostReference.parse(reference), using: atproto)

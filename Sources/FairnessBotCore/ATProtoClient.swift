@@ -9,7 +9,7 @@ import Foundation
 /// rather than racing on read/refresh. The bot's main loop processes Jetstream
 /// events strictly one at a time, so there's never more than one in-flight
 /// caller in practice — no need for single-flight refresh coalescing here.
-actor ATProtoClient {
+public actor ATProtoClient {
   private let config: Config
   private let urlSession: URLSession
   private var session: SessionResponse?
@@ -19,7 +19,7 @@ actor ATProtoClient {
   /// - Parameters:
   ///   - config: The bot's configuration.
   ///   - urlSession: The session used for all requests; defaults to `.shared`.
-  init(config: Config, urlSession: URLSession = .shared) {
+  public init(config: Config, urlSession: URLSession = .shared) {
     self.config = config
     self.urlSession = urlSession
   }
@@ -52,7 +52,7 @@ actor ATProtoClient {
   ///
   /// - Throws: Rethrows any error from the underlying network request. A missing or failed
   ///   avatar upload never blocks the rest of the profile update.
-  func configureProfile() async throws {
+  public func configureProfile() async throws {
     // Best-effort: a missing avatar file or a failed upload shouldn't block
     // the required displayName/description update.
     let avatarBlob = try? await uploadAvatarBlob()

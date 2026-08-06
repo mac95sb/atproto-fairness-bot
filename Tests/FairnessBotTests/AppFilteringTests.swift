@@ -1,6 +1,6 @@
 import Testing
 
-@testable import fairness_bot
+@testable import FairnessBotCore
 
 @Suite("Jetstream event filtering")
 struct AppFilteringTests {

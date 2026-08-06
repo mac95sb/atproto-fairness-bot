@@ -4,7 +4,7 @@ import Foundation
 /// see `LLM_BASE_URL`/`LLM_MODEL` in `.env.example`) to judge whether a reply
 /// engaged fairly with the point it was responding to, and if not, drafts a
 /// short, polite callout.
-struct FairnessJudge {
+struct FairnessJudge: Sendable {
   let config: Config
   var urlSession: URLSession = .shared
 

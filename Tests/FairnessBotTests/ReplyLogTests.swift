@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import fairness_bot
+@testable import FairnessBotCore
 
 @Suite("Reply log dedupe persistence")
 struct ReplyLogTests {

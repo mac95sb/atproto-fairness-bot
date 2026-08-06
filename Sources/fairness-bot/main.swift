@@ -1,0 +1,3 @@
+import FairnessBotCLI
+
+FairnessBotCLI.main()
