@@ -1,6 +1,6 @@
 import Testing
 
-@testable import FairnessBotCore
+@testable import FairnessBot
 
 @Suite("Command-line post references")
 struct CommandLineTests {

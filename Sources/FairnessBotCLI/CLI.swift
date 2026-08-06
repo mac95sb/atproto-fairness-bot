@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import FairnessBotCore
+import FairnessBot
 
 /// The `fairness-bot` command-line interface: continuous watching, one-shot checks, and
 /// one-time profile setup.

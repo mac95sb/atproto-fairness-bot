@@ -4,11 +4,11 @@
 import PackageDescription
 
 let package = Package(
-  name: "fairness-bot",
+  name: "FairnessBot",
   platforms: [.macOS(.v15)],
   products: [
     .executable(name: "fairness-bot", targets: ["fairness-bot"]),
-    .library(name: "FairnessBotCore", targets: ["FairnessBotCore"]),
+    .library(name: "FairnessBot", targets: ["FairnessBot"]),
     .library(name: "FairnessBotCLI", targets: ["FairnessBotCLI"]),
   ],
   dependencies: [
@@ -20,7 +20,7 @@ let package = Package(
       dependencies: ["FairnessBotCLI"]
     ),
     .target(
-      name: "FairnessBotCore",
+      name: "FairnessBot",
       dependencies: [
         .product(name: "ArgumentParser", package: "swift-argument-parser")
       ]
@@ -28,13 +28,13 @@ let package = Package(
     .target(
       name: "FairnessBotCLI",
       dependencies: [
-        "FairnessBotCore",
+        "FairnessBot",
         .product(name: "ArgumentParser", package: "swift-argument-parser")
       ]
     ),
     .testTarget(
       name: "FairnessBotTests",
-      dependencies: ["FairnessBotCore", "FairnessBotCLI"],
+      dependencies: ["FairnessBot", "FairnessBotCLI"],
       path: "Tests/FairnessBotTests",
     ),
   ],

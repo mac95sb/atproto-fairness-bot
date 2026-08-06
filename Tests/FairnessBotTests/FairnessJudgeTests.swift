@@ -1,6 +1,6 @@
 import Testing
 
-@testable import FairnessBotCore
+@testable import FairnessBot
 
 @Suite("Fairness verdict parsing")
 struct FairnessJudgeTests {
