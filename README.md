@@ -5,12 +5,15 @@ actually pushing back on or disagreeing with the point — debate, not general
 conversation — get a fairness judgment at all; friendly agreement,
 compliments, jokes, and unrelated banter are skipped entirely. For debate
 replies, a configured OpenAI-compatible LLM scores how fairly the reply
-engages—with evidence and substance rather than insults, sarcasm, or
-strawmanning—on a scale of 0-100, and only when that score falls below a
-configurable threshold, the bot posts a short, polite public reply. Every
-posted reply is paired with a `dev.maclong.feed.verdict` record (see [Verdict
-lexicon](#verdict-lexicon)) published to the bot's own repo, so its judging
-activity is a structured, public part of the network.
+engages on three separate axes — rhetoric (tone), relevance (engages the
+actual point vs. a strawman), and evidence (supports its claims) — each 0-100.
+The publication gate is the *weakest* of the three, not their average, so a
+mostly-substantive reply with one severely unfair aside still gets flagged.
+Only when that gate score falls below a configurable threshold does the bot
+post a short, polite public reply. Every posted reply is paired with a
+`dev.maclong.feed.verdict` record (see [Verdict lexicon](#verdict-lexicon))
+published to the bot's own repo, so its judging activity is a structured,
+public part of the network.
 
 The bot is a Swift process that watches the network through
 [Jetstream](https://github.com/bluesky-social/jetstream), a filtered JSON
@@ -53,14 +56,20 @@ reply to the configured target account.
 1. Subscribes to new `app.bsky.feed.post` records through Jetstream.
 2. Keeps only direct replies whose **immediate parent** is authored by the
    configured target account. Replies to somebody else's reply are ignored,
-   even when that nested thread appears below one of the target's posts.
+   even when that nested thread appears below one of the target's posts. The
+   one deliberate exception is the optional `SELF_REVIEW_ENABLED` mode (off by
+   default): when set, the bot also judges the target account's own outgoing
+   replies to other people — see [Self-review mode](#self-review-mode).
 3. Fetches the root and parent posts from the public Bluesky AppView.
 4. Asks the configured LLM whether the reply is a debate response at all
    (disagreement, pushback, criticism) as opposed to general conversation.
-   Non-debate replies stop here — no score, no reply. Debate replies get a
-   fairness score (0-100) and reasoning.
-5. When the score is below `FAIRNESS_SCORE_THRESHOLD`, posts the model's
-   concise suggested reply from the bot account, then publishes a
+   Non-debate replies stop here — no score, no reply. Debate replies get
+   scored on three axes (rhetoric, relevance, evidence, each 0-100) and
+   reasoning; the gate score is the weakest of the three.
+5. When the gate score is below `FAIRNESS_SCORE_THRESHOLD`, optionally sends
+   the verdict and draft reply to a second reviewer model (see
+   [Second-model review](#second-model-review)), then — for an external
+   reply — posts the approved reply from the bot account and publishes a
    `dev.maclong.feed.verdict` record referencing both posts (see [Verdict
    lexicon](#verdict-lexicon)).
 6. Persists its Jetstream cursor and replied-to URIs in `state/`, so restart
@@ -68,6 +77,40 @@ reply to the configured target account.
 
 Jetstream retention is finite. After downtime longer than the selected public
 instance retains events, replies from that gap cannot be replayed.
+
+## Second-model review
+
+An unfair verdict can optionally be sent to a second, independent LLM before
+anything is published (`LLM_REVIEW_MODEL`). The reviewer makes two
+independent judgments, not one:
+
+- **Does it agree the reply was actually unfair?** If it disagrees with the
+  first model's finding, it overturns the verdict outright — nothing gets
+  posted or published, and this is logged distinctly from a text rejection.
+- **If it agrees, is this specific candidate reply fit to post?** It can
+  approve the draft with only minimal edits (clarity, factual caution, tone,
+  the character limit), or reject the text itself — e.g. too harsh or
+  disproportionate — while still agreeing the original reply was unfair.
+
+Both non-approved outcomes currently result in nothing being posted; the
+distinction is about observability, not behavior — a false positive should
+never publish, whether it's rejected for being wrong on the merits or just
+poorly worded.
+
+## Self-review mode
+
+By default, the bot only ever evaluates replies made *to* the target account
+— structurally, it can defend the target but never call the target out for
+being unfair to someone else. Setting `SELF_REVIEW_ENABLED=true` (default
+`false`) closes that gap: the bot also judges the target account's own
+outgoing replies to other people, through the same three-axis scoring and
+optional reviewer gate.
+
+An unfair self-review never posts a public counter-reply — the bot publicly
+"replying" to its own operator would be a strange, dishonest performance.
+Instead it publishes a `dev.maclong.feed.verdict` record with `selfAssessment:
+true` and no `reply`/`replyText`, so the accountability is the published
+record itself, not a staged conversation.
 
 ## One-time setup
 
@@ -100,10 +143,12 @@ Set all required values:
 
 - `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` — the OpenAI-compatible provider.
   The template uses Chutes; override all three together for another provider.
-- `LLM_REVIEW_MODEL` — optional second-model gate. When set, the reviewer sees
-  the first verdict and draft, then either rejects publication or supplies the
-  final, minimally edited reply. `LLM_REVIEW_BASE_URL` and `LLM_REVIEW_API_KEY`
-  are optional overrides; otherwise the primary provider credentials are used.
+- `LLM_REVIEW_MODEL` — optional second-model gate (see [Second-model
+  review](#second-model-review)). When set, the reviewer sees the first
+  verdict and draft, then either overturns the finding, rejects the candidate
+  text, or supplies the final, minimally edited reply. `LLM_REVIEW_BASE_URL`
+  and `LLM_REVIEW_API_KEY` are optional overrides; otherwise the primary
+  provider credentials are used.
 - `BOT_PDS_URL`, `BOT_HANDLE`, `BOT_APP_PASSWORD` — the bot PDS credentials.
 - `BOT_DISPLAY_NAME`, `BOT_PROFILE_DESCRIPTION` — the bot's Bluesky profile.
   The watcher applies these through the authenticated PDS API at startup, including
@@ -111,8 +156,12 @@ Set all required values:
   The bot's avatar is applied the same way, uploaded from `assets/logo.png`
   (override with `BOT_AVATAR_PATH`); a missing or failed avatar upload never
   blocks the display name/description update.
-- `FAIRNESS_SCORE_THRESHOLD` — optional, defaults to `60`. Replies scoring
-  below this (out of 100) are treated as unfair and get a callout reply.
+- `FAIRNESS_SCORE_THRESHOLD` — optional, defaults to `60`. Replies gating
+  below this (out of 100 — the weakest of the rhetoric/relevance/evidence
+  sub-scores) are treated as unfair and get a callout reply.
+- `SELF_REVIEW_ENABLED` — optional, defaults to `false` (see [Self-review
+  mode](#self-review-mode)). When `true`, the bot also judges the target
+  account's own outgoing replies.
 
 The target defaults to `maclong.dev` / `did:web:id.maclong.dev`. Override
 `TARGET_HANDLE` and `TARGET_DID` to protect another account.
@@ -188,16 +237,22 @@ lives at [`lexicons/dev.maclong.feed.verdict.json`](lexicons/dev.maclong.feed.ve
 and contains:
 
 - `subject` — strong ref to the reply post that was judged
-- `reply` — strong ref to the bot's own callout reply
-- `score` — the fairness score (0-100) that triggered the reply
+- `reply` — strong ref to the bot's own callout reply; absent for a
+  self-assessment (see [Self-review mode](#self-review-mode))
+- `score` — the gate score (0-100): the weakest of `rhetoric`, `relevance`,
+  and `evidence`
+- `rhetoric`, `relevance`, `evidence` — the three sub-scores (0-100) behind
+  `score`
 - `reasoning` — the judge's explanation
-- `replyText` — the exact text posted
+- `replyText` — the exact text posted; absent for a self-assessment
+- `selfAssessment` — `true` when the subject is the target account's own
+  reply, judged under self-review mode, rather than an external reply
 - `createdAt` — publish timestamp
 
-Verdict records are only published when a reply is actually posted (never for
-fair verdicts or dry-run `check` calls), and a publish failure never blocks or
-retries the reply itself — it's a best-effort record of an action already
-taken.
+Verdict records are only published when a reply is actually posted, or for an
+unfair self-assessment (never for fair verdicts or dry-run `check` calls), and
+a publish failure never blocks or retries the reply itself — it's a
+best-effort record of an action already taken.
 
 ## Running your own instance
 

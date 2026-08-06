@@ -15,7 +15,7 @@ struct ReplyLogTests {
   @Test
   func `A URI that hasn't been marked is not already replied`() async {
     let log = ReplyLog(stateDirectory: stateDirectory)
-    #expect(await log.alreadyReplied("at://did:plc:x/app.bsky.feed.post/1") == false)
+    #expect(await log.hasReplied(to: "at://did:plc:x/app.bsky.feed.post/1") == false)
   }
 
   @Test
@@ -25,7 +25,7 @@ struct ReplyLogTests {
 
     await log.markReplied(uri)
 
-    #expect(await log.alreadyReplied(uri) == true)
+    #expect(await log.hasReplied(to: uri) == true)
   }
 
   @Test
@@ -33,7 +33,7 @@ struct ReplyLogTests {
     let log = ReplyLog(stateDirectory: stateDirectory)
     await log.markReplied("at://did:plc:x/app.bsky.feed.post/1")
 
-    #expect(await log.alreadyReplied("at://did:plc:x/app.bsky.feed.post/2") == false)
+    #expect(await log.hasReplied(to: "at://did:plc:x/app.bsky.feed.post/2") == false)
   }
 
   @Test
@@ -43,7 +43,7 @@ struct ReplyLogTests {
     await first.markReplied(uri)
 
     let second = ReplyLog(stateDirectory: stateDirectory)
-    #expect(await second.alreadyReplied(uri) == true)
+    #expect(await second.hasReplied(to: uri) == true)
   }
 
   @Test
@@ -54,6 +54,6 @@ struct ReplyLogTests {
     await log.markReplied(uri)
     await log.markReplied(uri)
 
-    #expect(await log.alreadyReplied(uri) == true)
+    #expect(await log.hasReplied(to: uri) == true)
   }
 }

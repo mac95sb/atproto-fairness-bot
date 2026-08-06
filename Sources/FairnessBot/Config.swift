@@ -3,33 +3,54 @@ import Foundation
 /// All bot behavior is driven by environment variables so anyone can point this
 /// at their own PDS/account and LLM provider without touching source. See `.env.example`.
 struct Config: CustomStringConvertible {
+  /// The OpenAI-compatible provider's API base URL; `chat/completions` is appended to it.
   let llmBaseURL: URL
+  /// The bearer token for the primary LLM provider.
   let llmAPIKey: String
+  /// The primary LLM provider's model identifier.
   let llmModel: String
+  /// The optional second-model reviewer, configured only when `LLM_REVIEW_MODEL` is set.
   let reviewLLM: ReviewLLM?
 
+  /// The handle of the account this bot protects.
   let targetHandle: String
+  /// The DID of the account this bot protects.
   let targetDID: String
 
+  /// The bot's own PDS service endpoint.
   let botPDSURL: URL
+  /// The bot's own handle.
   let botHandle: String
+  /// An app password for the bot's own account.
   let botAppPassword: String
+  /// The display name applied to the bot's Bluesky profile.
   let botDisplayName: String
+  /// The description applied to the bot's Bluesky profile.
   let botProfileDescription: String
+  /// The local file path of the image uploaded as the bot's avatar.
   let botAvatarPath: URL
 
+  /// The Jetstream instance to subscribe to.
   let jetstreamURL: URL
+  /// The public Bluesky AppView used to fetch thread context.
   let appViewURL: URL
+  /// The directory used to persist the Jetstream cursor and the reply dedupe log.
   let stateDirectory: URL
+  /// The minimum gate score (0-100) a reply must meet to be treated as fair.
   let fairnessScoreThreshold: Int
+  /// Whether the bot also judges the target account's own outgoing replies. Off by default.
+  let isSelfReviewEnabled: Bool
 
+  /// The optional second-model reviewer's provider configuration.
   struct ReviewLLM {
     let baseURL: URL
     let apiKey: String
     let model: String
   }
 
+  /// An error raised while loading configuration from the environment.
   enum ConfigError: Error, CustomStringConvertible {
+    /// One or more required environment variables were missing or invalid; lists them by name.
     case missing([String])
 
     var description: String {
@@ -40,6 +61,13 @@ struct Config: CustomStringConvertible {
     }
   }
 
+  /// Loads configuration from the given environment, applying documented defaults for
+  /// every optional variable.
+  ///
+  /// - Parameter environment: The environment variables to read; defaults to the process
+  ///   environment.
+  /// - Throws: `ConfigError.missing` if a required variable is absent, or if a variable
+  ///   that must parse as a URL or integer does not.
   init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
     func required(_ key: String, missing: inout [String]) -> String {
       guard let value = environment[key], !value.isEmpty else {
@@ -122,6 +150,9 @@ struct Config: CustomStringConvertible {
     } else {
       fairnessScoreThreshold = 60
     }
+
+    isSelfReviewEnabled = ["true", "1"].contains(
+      (optional("SELF_REVIEW_ENABLED") ?? "false").lowercased())
   }
 
   /// Redacted on purpose: never let the app password or API key end up in logs,
@@ -137,6 +168,7 @@ struct Config: CustomStringConvertible {
       reviewLLM: \(reviewLLM?.model ?? "<disabled>"),
       jetstreamURL: \(jetstreamURL.absoluteString), appViewURL: \(appViewURL.absoluteString),
       stateDirectory: \(stateDirectory.path), fairnessScoreThreshold: \(fairnessScoreThreshold),
+      isSelfReviewEnabled: \(isSelfReviewEnabled),
       botAppPassword: <redacted>, llmAPIKey: <redacted>
     )
     """

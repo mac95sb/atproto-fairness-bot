@@ -29,6 +29,16 @@ struct ConfigTests {
         == "Automated account that encourages fair, evidence-based discussion.")
     #expect(config.jetstreamURL.absoluteString == "wss://jetstream2.us-east.bsky.network/subscribe")
     #expect(config.fairnessScoreThreshold == 60)
+    #expect(config.isSelfReviewEnabled == false)
+  }
+
+  @Test
+  func `Self-review can be enabled via SELF_REVIEW_ENABLED`() throws {
+    var env = baseValidEnv()
+    env["SELF_REVIEW_ENABLED"] = "true"
+
+    let config = try Config(environment: env)
+    #expect(config.isSelfReviewEnabled == true)
   }
 
   @Test

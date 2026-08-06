@@ -4,11 +4,11 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A fairness-bot verdict on a reply, published alongside the callout reply it triggered.",
+      "description": "A fairness-bot verdict on a reply, published alongside the callout reply it triggered (or, for a self-assessment, on its own).",
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["subject", "reply", "score", "reasoning", "replyText", "createdAt"],
+        "required": ["subject", "score", "reasoning", "createdAt"],
         "properties": {
           "subject": {
             "type": "ref",
@@ -18,13 +18,31 @@
           "reply": {
             "type": "ref",
             "ref": "com.atproto.repo.strongRef",
-            "description": "The bot's own callout reply, posted in response to the subject."
+            "description": "The bot's own callout reply, posted in response to the subject. Absent for a self-assessment, which never posts a public counter-reply."
           },
           "score": {
             "type": "integer",
             "minimum": 0,
             "maximum": 100,
-            "description": "How fairly the subject engaged, from 0 (pure hostility, no substance) to 100 (fully fair and evidence-based)."
+            "description": "How fairly the subject engaged overall: the lowest of rhetoric, relevance, and evidence, from 0 (pure hostility, no substance) to 100 (fully fair and evidence-based)."
+          },
+          "rhetoric": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Tone: 0 is insults/sarcasm/mockery in place of argument, 100 is civil even if blunt."
+          },
+          "relevance": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Whether the reply engages the actual point: 0 is a strawman or a different point altogether, 100 directly addresses it."
+          },
+          "evidence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Support for the reply's claims: 0 asserts a conclusion with no evidence or reasoning, 100 backs it with evidence, sound reasoning, or a genuine counter-argument."
           },
           "reasoning": {
             "type": "string",
@@ -32,7 +50,11 @@
           },
           "replyText": {
             "type": "string",
-            "description": "The exact text of the bot's callout reply."
+            "description": "The exact text of the bot's callout reply. Absent for a self-assessment."
+          },
+          "selfAssessment": {
+            "type": "boolean",
+            "description": "True when the subject is the target account's own reply to someone else, judged under the optional self-review mode, rather than an external reply to the target."
           },
           "createdAt": {
             "type": "string",

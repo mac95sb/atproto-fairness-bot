@@ -41,6 +41,7 @@ struct AppFilteringTests {
     #expect(qualifying.cid == "bafyreicid")
     #expect(qualifying.authorDID == "did:plc:someReplier")
     #expect(qualifying.text == "some reply text")
+    #expect(qualifying.kind == .external)
   }
 
   @Test
@@ -67,6 +68,32 @@ struct AppFilteringTests {
   func `The target account replying to itself is ignored`() {
     let event = makeEvent(authorDID: targetDID)
     #expect(FairnessBotApp.qualifyingReply(in: event, targetDID: targetDID) == nil)
+  }
+
+  @Test
+  func `The target's own reply to someone else qualifies for self-review`() throws {
+    let event = makeEvent(
+      authorDID: targetDID,
+      parentURI: "at://did:plc:someoneElse/app.bsky.feed.post/root1",
+      rootURI: "at://did:plc:someoneElse/app.bsky.feed.post/root1",
+    )
+    let qualifying = try #require(
+      FairnessBotApp.qualifyingOwnReply(in: event, targetDID: targetDID))
+
+    #expect(qualifying.authorDID == targetDID)
+    #expect(qualifying.kind == .selfReview)
+  }
+
+  @Test
+  func `The target replying to itself is still ignored from the self-review direction`() {
+    let event = makeEvent(authorDID: targetDID)
+    #expect(FairnessBotApp.qualifyingOwnReply(in: event, targetDID: targetDID) == nil)
+  }
+
+  @Test
+  func `A third party's reply never qualifies as the target's own reply`() {
+    let event = makeEvent(authorDID: "did:plc:someReplier")
+    #expect(FairnessBotApp.qualifyingOwnReply(in: event, targetDID: targetDID) == nil)
   }
 
   @Test(

@@ -1,6 +1,8 @@
 import ArgumentParser
 import Foundation
 
+/// The `fairness-bot` command-line interface: continuous watching, one-shot checks, and
+/// one-time profile setup.
 @main
 struct FairnessBotCLI: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
@@ -10,6 +12,7 @@ struct FairnessBotCLI: AsyncParsableCommand {
     defaultSubcommand: Watch.self,
   )
 
+  /// Watches Jetstream continuously, replying only to unfair replies. The default subcommand.
   struct Watch: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       abstract: "Watch Jetstream continuously and reply only to unfair replies.",
@@ -20,6 +23,7 @@ struct FairnessBotCLI: AsyncParsableCommand {
     }
   }
 
+  /// Applies the bot's configured display name, description, avatar, and automation label.
   struct SetupProfile: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "setup-profile",
@@ -34,19 +38,20 @@ struct FairnessBotCLI: AsyncParsableCommand {
     }
   }
 
+  /// Evaluates a single existing reply, dry-run unless `--post` is given.
   struct Check: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
       abstract: "Evaluate one reply, dry-run by default.",
     )
 
     @Flag(name: .customLong("post"), help: "Post the suggested reply when the verdict is unfair.")
-    var postReply = false
+    var shouldPostReply = false
 
     @Argument(help: "An AT-URI or https://bsky.app/profile/<handle-or-did>/post/<rkey> URL.")
-    var post: String
+    var postReference: String
 
     func run() async throws {
-      try await FairnessBotApp.check(post, postIfUnfair: postReply)
+      try await FairnessBotApp.check(postReference, postIfUnfair: shouldPostReply)
     }
   }
 }

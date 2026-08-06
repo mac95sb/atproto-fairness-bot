@@ -3,9 +3,13 @@ import Foundation
 /// A single event frame from a Jetstream subscription.
 /// https://github.com/bluesky-social/jetstream
 struct JetstreamEvent: Decodable {
+  /// The DID of the repo the event belongs to.
   let did: String
+  /// The event's microsecond-resolution timestamp, used as the resumable cursor.
   let timeUs: Int64
+  /// The event type, e.g. `"commit"`.
   let kind: String
+  /// The repo operation, present for `"commit"` events.
   let commit: Commit?
 
   enum CodingKeys: String, CodingKey {
@@ -15,10 +19,14 @@ struct JetstreamEvent: Decodable {
     case commit
   }
 
+  /// A single repo operation within a commit event.
   struct Commit: Decodable {
     let rev: String
+    /// The operation type, e.g. `"create"`.
     let operation: String
+    /// The collection NSID the record belongs to, e.g. `"app.bsky.feed.post"`.
     let collection: String
+    /// The record key.
     let rkey: String
     let cid: String?
     let record: PostRecord?
