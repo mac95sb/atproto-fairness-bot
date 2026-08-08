@@ -63,14 +63,17 @@ public enum FairnessBotApp {
     )
     let verdict = try await judge.judge(judgeContext)
 
-    if let score = verdict.score {
-      let isFair = verdict.isFair(threshold: config.fairnessScoreThreshold)
-      print("\(isFair ? "FAIR" : "UNFAIR") (\(score)/100)")
+    if !verdict.isDebate {
+      print("N/A — general conversation, no fairness score.")
+    } else if let score = verdict.score {
+      print(
+        "\(verdict.isFair(threshold: config.fairnessScoreThreshold) ? "FAIR" : "UNFAIR") (\(score)/100)"
+      )
       print(
         "  rhetoric: \(verdict.rhetoric ?? 0)/100  relevance: \(verdict.relevance ?? 0)/100  evidence: \(verdict.evidence ?? 0)/100"
       )
     } else {
-      print("N/A — general conversation, no fairness score.")
+      print("N/A — debate reply with incomplete fairness scores.")
     }
     print(verdict.reasoning)
     guard
@@ -224,7 +227,12 @@ public enum FairnessBotApp {
         ?? (config.isSelfReviewEnabled
           ? qualifyingOwnReply(in: event, targetDID: config.targetDID) : nil)
     else { return }
-    guard await !replyLog.hasReplied(to: qualifying.uri) else { return }
+
+    log("Received \(qualifying.kind.logDescription) reply \(qualifying.uri); evaluating.")
+    guard await !replyLog.hasReplied(to: qualifying.uri) else {
+      log("Skipping \(qualifying.uri); it was already handled.")
+      return
+    }
 
     // The public AppView briefly lags the firehose; give it a moment to
     // index this brand-new post before asking it for context.
@@ -241,8 +249,22 @@ public enum FairnessBotApp {
     )
     let verdict = try await judge.judge(judgeContext)
 
-    guard !verdict.isFair(threshold: config.fairnessScoreThreshold) else { return }
+    guard !verdict.isFair(threshold: config.fairnessScoreThreshold) else {
+      if verdict.isDebate {
+        log(
+          "Fair \(qualifying.kind.logDescription) reply \(qualifying.uri); score \(verdict.score ?? 0) meets threshold \(config.fairnessScoreThreshold)."
+        )
+      } else {
+        log(
+          "Non-debate \(qualifying.kind.logDescription) reply \(qualifying.uri); no fairness score or threshold applied."
+        )
+      }
+      return
+    }
     guard let outcome = try await judge.reviewedReply(for: verdict, context: judgeContext) else {
+      log(
+        "Unfair \(qualifying.kind.logDescription) reply \(qualifying.uri); the judge returned no candidate reply."
+      )
       return
     }
     let rebuttalText: String
@@ -309,6 +331,13 @@ public enum FairnessBotApp {
       case external
       /// The target account's own reply to someone else, judged only when self-review is on.
       case selfReview
+
+      var logDescription: String {
+        switch self {
+        case .external: "external"
+        case .selfReview: "self-review"
+        }
+      }
     }
 
     let uri: String

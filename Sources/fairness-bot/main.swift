@@ -1,3 +1,8 @@
 import FairnessBotCLI
 
-FairnessBotCLI.main()
+@main
+struct FairnessBotMain {
+  static func main() async {
+    await FairnessBotCLI.main()
+  }
+}

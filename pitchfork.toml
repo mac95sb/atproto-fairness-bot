@@ -1,5 +1,5 @@
 [daemons.fairness-bot]
-run = ".build/release/fairness-bot"
+run = ".build/release/fairness-bot watch"
 dir = "."
 mise = true
 retry = true
