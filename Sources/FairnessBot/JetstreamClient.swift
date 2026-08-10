@@ -3,7 +3,7 @@ import Foundation
 /// Watches a Jetstream instance (https://github.com/bluesky-social/jetstream)
 /// for `app.bsky.feed.post` creates and hands each decoded event to a callback.
 ///
-/// Persists the `time_us` cursor to disk after each event finishes processing.
+/// Periodically persists the latest handled `time_us` cursor and flushes it when a connection ends.
 /// On any reconnect — a dropped socket, or a fresh process start after a crash —
 /// it always resumes from that saved cursor, so Jetstream replays everything
 /// posted during the gap instead of silently skipping it. This is bounded by
@@ -12,6 +12,7 @@ import Foundation
 actor JetstreamClient {
   private let config: Config
   private let urlSession: URLSession
+  private let cursorSaveInterval: TimeInterval = 1
 
   /// The on-disk location of the persisted cursor.
   private var cursorFileURL: URL {
@@ -55,7 +56,7 @@ actor JetstreamClient {
   }
 
   /// Opens one WebSocket connection, decodes events as they arrive, and hands each to
-  /// `onEvent`, persisting the cursor after every successfully handled event.
+  /// `onEvent`, periodically checkpointing the latest successfully handled event.
   ///
   /// - Parameter onEvent: Called for each decoded event.
   /// - Throws: Rethrows any error from the WebSocket connection or from `onEvent`.
@@ -64,8 +65,15 @@ actor JetstreamClient {
   {
     let url = subscribeURL(cursor: loadCursor())
     let webSocketTask = urlSession.webSocketTask(with: url)
+    var latestHandledCursor: Int64?
+    var lastCursorSave = Date()
     webSocketTask.resume()
-    defer { webSocketTask.cancel(with: .goingAway, reason: nil) }
+    defer {
+      if let latestHandledCursor {
+        saveCursor(latestHandledCursor)
+      }
+      webSocketTask.cancel(with: .goingAway, reason: nil)
+    }
 
     while !Task.isCancelled {
       let message = try await webSocketTask.receive()
@@ -79,7 +87,17 @@ actor JetstreamClient {
       }
 
       try await onEvent(event)
-      saveCursor(event.timeUs)
+      latestHandledCursor = event.timeUs
+
+      // Jetstream carries the whole post firehose. Atomically rewriting a file for every
+      // irrelevant post makes the consumer slower than the stream and leaves it permanently
+      // replaying old events. Checkpoint at most once per second instead; the final cursor is
+      // also flushed by `defer` whenever this connection ends.
+      let now = Date()
+      if now.timeIntervalSince(lastCursorSave) >= cursorSaveInterval {
+        saveCursor(event.timeUs)
+        lastCursorSave = now
+      }
     }
   }
 

@@ -233,11 +233,18 @@ public actor ATProtoClient {
     urlRequest.httpMethod = "POST"
     urlRequest.setValue("Bearer \(refreshJwt)", forHTTPHeaderField: "Authorization")
 
-    let (data, response) = try await urlSession.data(for: urlRequest)
-    try Self.checkStatus(response, data: data)
-    let decoded = try JSONDecoder().decode(SessionResponse.self, from: data)
-    session = decoded
-    return decoded
+    do {
+      let (data, response) = try await urlSession.data(for: urlRequest)
+      try Self.checkStatus(response, data: data)
+      let decoded = try JSONDecoder().decode(SessionResponse.self, from: data)
+      session = decoded
+      return decoded
+    } catch ATProtoError.unauthorized {
+      // A long-running process can outlive both tokens. Discard the stale session and
+      // authenticate with the app password rather than retrying a dead refresh token.
+      session = nil
+      return try await login()
+    }
   }
 
   // MARK: - Low-level request helpers
@@ -293,15 +300,19 @@ public actor ATProtoClient {
   /// - Parameters:
   ///   - response: The response to check.
   ///   - data: The response body, used to decode an XRPC error message if the status isn't OK.
-  /// - Throws: `ATProtoError.unauthorized` for a 401, or `ATProtoError.requestFailed` for any
-  ///   other non-2xx status.
-  private static func checkStatus(_ response: URLResponse, data: Data) throws {
+  /// - Throws: `ATProtoError.unauthorized` when the PDS reports an invalid or expired token,
+  ///   or `ATProtoError.requestFailed` for any other non-2xx status.
+  static func checkStatus(_ response: URLResponse, data: Data) throws {
     guard let http = response as? HTTPURLResponse else { return }
     guard (200..<300).contains(http.statusCode) else {
-      if http.statusCode == 401 {
+      let decoded = try? JSONDecoder().decode(XRPCError.self, from: data)
+      let errorCode = decoded?.error?.lowercased()
+      let message = decoded?.message?.lowercased()
+      if http.statusCode == 401 || errorCode == "expiredtoken" || errorCode == "invalidtoken"
+        || message?.contains("token has expired") == true
+      {
         throw ATProtoError.unauthorized
       }
-      let decoded = try? JSONDecoder().decode(XRPCError.self, from: data)
       throw ATProtoError.requestFailed(
         status: http.statusCode, message: decoded?.message ?? decoded?.error)
     }

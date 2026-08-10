@@ -20,10 +20,24 @@ public enum FairnessBotApp {
     try await atproto.configureProfile()
 
     try await jetstream.run { event in
-      do {
-        try await handle(event, config: config, atproto: atproto, judge: judge, replyLog: replyLog)
-      } catch {
-        log("Error processing event at \(event.timeUs): \(error)")
+      // Filtering is synchronous and cheap. Do it before starting a task so the global
+      // firehose doesn't create millions of short-lived tasks for irrelevant posts.
+      guard
+        qualifyingReply(in: event, targetDID: config.targetDID) != nil
+          || (config.isSelfReviewEnabled
+            && qualifyingOwnReply(in: event, targetDID: config.targetDID) != nil)
+      else { return }
+
+      // LLM calls routinely take tens of seconds. Running them inline would stop WebSocket
+      // receives for that entire time, causing Jetstream backlog and disconnects. Qualifying
+      // replies are rare; process them independently while intake and cursor checkpointing continue.
+      Task {
+        do {
+          try await handle(
+            event, config: config, atproto: atproto, judge: judge, replyLog: replyLog)
+        } catch {
+          log("Error processing event at \(event.timeUs): \(error)")
+        }
       }
     }
   }
